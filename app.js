@@ -1,16 +1,9 @@
-﻿const builtinTools = [
-  { id: "builtin-lcl", title: "LCL 滤波器设计", category: "滤波器", url: "https://powtoolbox.cn/LCL%E6%BB%A4%E6%B3%A2%E5%99%A8%E8%AE%BE%E8%AE%A1", description: "适合并网逆变器侧的 LCL 参数估算与设计验证入口。", tags: ["LCL", "并网", "滤波器"], source: "builtin" },
-  { id: "builtin-sim", title: "PLECS / PSIM / LTspice 资料入口", category: "仿真资料", url: "https://www.plexim.com/", description: "常用仿真平台的官方入口，可以作为模型、教程和案例的统一跳板。", tags: ["仿真", "PLECS", "PSIM", "LTspice"], source: "builtin" },
-  { id: "builtin-datasheet", title: "器件数据手册总入口", category: "论文手册", url: "https://www.infineon.com/", description: "IGBT、SiC、MOSFET、驱动芯片等数据手册查询入口。", tags: ["DataSheet", "SiC", "MOSFET"], source: "builtin" },
-  { id: "builtin-magnetics", title: "磁性器件设计资料", category: "磁性器件", url: "https://www.ferroxcube.com/", description: "磁芯选型、损耗曲线、材料手册和设计资源入口。", tags: ["磁芯", "损耗", "电感"], source: "builtin" },
-  { id: "builtin-topology", title: "拓扑与控制思路整理", category: "拓扑设计", url: "https://www.ti.com/power-management/overview.html", description: "适合整理 Buck、Boost、PFC、LLC、逆变器相关资料。", tags: ["Buck", "Boost", "PFC", "LLC"], source: "builtin" },
-  { id: "builtin-select", title: "器件选型与参考设计", category: "器件选型", url: "https://www.wolfspeed.com/knowledge-center/", description: "适合查看 SiC 器件、参考设计和应用笔记。", tags: ["选型", "SiC", "参考设计"], source: "builtin" }
-];
+const builtinTools = [];
 
 const storageKeys = {
-  customTools: "power-electronics-custom-tools",
-  favorites: "power-electronics-favorites",
-  notes: "power-electronics-notes",
+  customTools: "power-electronics-custom-tools-v2",
+  favorites: "power-electronics-favorites-v2",
+  notes: "power-electronics-notes-v2",
   globalNotes: "power-electronics-global-notes"
 };
 
@@ -49,7 +42,7 @@ const elements = {
     buck: { inputs: { vin: document.querySelector("#buck-vin"), vout: document.querySelector("#buck-vout"), iout: document.querySelector("#buck-iout"), fsw: document.querySelector("#buck-fsw"), rippleCurrent: document.querySelector("#buck-ripple-current"), rippleVoltage: document.querySelector("#buck-ripple-voltage") }, output: document.querySelector("#buck-results") },
     boost: { inputs: { vin: document.querySelector("#boost-vin"), vout: document.querySelector("#boost-vout"), iout: document.querySelector("#boost-iout"), fsw: document.querySelector("#boost-fsw"), efficiency: document.querySelector("#boost-efficiency"), rippleCurrent: document.querySelector("#boost-ripple-current") }, output: document.querySelector("#boost-results") },
     lcl: { inputs: { vdc: document.querySelector("#lcl-vdc"), vll: document.querySelector("#lcl-vll"), power: document.querySelector("#lcl-power"), fsw: document.querySelector("#lcl-fsw"), gridFrequency: document.querySelector("#lcl-grid-frequency"), rippleCurrent: document.querySelector("#lcl-ripple-current"), capRatio: document.querySelector("#lcl-cap-ratio"), gridRatio: document.querySelector("#lcl-grid-ratio"), pf: document.querySelector("#lcl-pf"), dampingFactor: document.querySelector("#lcl-damping-factor"), minResonanceMultiple: document.querySelector("#lcl-min-resonance-multiple"), maxResonanceRatio: document.querySelector("#lcl-max-resonance-ratio") }, output: document.querySelector("#lcl-results") },
-    filter: { inputs: { type: document.querySelector("#filter-type"), frequency: document.querySelector("#filter-frequency"), capacitance: document.querySelector("#filter-capacitance"), resistance: document.querySelector("#filter-resistance"), zeta: document.querySelector("#filter-zeta"), q: document.querySelector("#filter-q") }, output: document.querySelector("#filter-results") }
+    filter: { inputs: { order: document.querySelector("#filter-order"), type: document.querySelector("#filter-type"), gainDb: document.querySelector("#filter-gain-db"), frequency: document.querySelector("#filter-frequency"), zeta: document.querySelector("#filter-zeta"), span: document.querySelector("#filter-span") }, output: document.querySelector("#filter-results") }
   }
 };
 
@@ -105,7 +98,7 @@ function renderTools() {
   if (!filteredTools.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.textContent = "当前筛选条件下没有工具。你可以放宽搜索条件，或者自己新增一个工具卡片。";
+    empty.textContent = "工具库已清空。后面你想放资料链接、仿真入口或厂家手册，可以点“新增工具”慢慢加。";
     elements.toolGrid.appendChild(empty);
     elements.resultsSummary.textContent = "没有匹配结果";
     return;
@@ -633,114 +626,291 @@ function computeLcl() {
   window.latestLclResult = result;
 }
 
+function complex(re, im = 0) {
+  return { re, im };
+}
+
+function cAdd(a, b) {
+  return complex(a.re + b.re, a.im + b.im);
+}
+
+function cMul(a, b) {
+  return complex(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re);
+}
+
+function cDiv(a, b) {
+  const den = b.re * b.re + b.im * b.im;
+  return complex((a.re * b.re + a.im * b.im) / den, (a.im * b.re - a.re * b.im) / den);
+}
+
+function cAbs(a) {
+  return Math.hypot(a.re, a.im);
+}
+
+function cPhaseDeg(a) {
+  return Math.atan2(a.im, a.re) * 180 / Math.PI;
+}
+
+function unwrapPhases(phases) {
+  const result = [];
+  phases.forEach((phase, index) => {
+    if (index === 0) {
+      result.push(phase);
+      return;
+    }
+    let next = phase;
+    const previous = result[index - 1];
+    while (next - previous > 180) next -= 360;
+    while (next - previous < -180) next += 360;
+    result.push(next);
+  });
+  return result;
+}
+
+function interpolateCrossing(points, key, target) {
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const av = a[key] - target;
+    const bv = b[key] - target;
+    if (av === 0) return a;
+    if (av * bv <= 0) {
+      const ratio = Math.abs(av) / (Math.abs(av) + Math.abs(bv));
+      return {
+        frequency: a.frequency + (b.frequency - a.frequency) * ratio,
+        magnitudeDb: a.magnitudeDb + (b.magnitudeDb - a.magnitudeDb) * ratio,
+        phaseDeg: a.phaseDeg + (b.phaseDeg - a.phaseDeg) * ratio
+      };
+    }
+  }
+  return null;
+}
+
+function transferResponse(config, omega) {
+  const s = complex(0, omega);
+  const k = complex(config.gain);
+  const wn = config.omega0;
+  const s2 = cMul(s, s);
+
+  if (config.order === 1) {
+    const denominator = cAdd(s, complex(wn));
+    const numerator = config.type === "highpass" ? s : complex(wn);
+    return cMul(k, cDiv(numerator, denominator));
+  }
+
+  const denominator = cAdd(cAdd(s2, cMul(complex(2 * config.zeta * wn), s)), complex(wn * wn));
+  let numerator;
+  if (config.type === "highpass") {
+    numerator = s2;
+  } else if (config.type === "bandpass") {
+    numerator = cMul(complex(2 * config.zeta * wn), s);
+  } else if (config.type === "notch") {
+    numerator = cAdd(s2, complex(wn * wn));
+  } else {
+    numerator = complex(wn * wn);
+  }
+  return cMul(k, cDiv(numerator, denominator));
+}
+
 function computeFilterValues() {
-  const type = elements.calculators.filter.inputs.type.value;
+  const order = Number(elements.calculators.filter.inputs.order.value);
+  let type = elements.calculators.filter.inputs.type.value;
+  const gainDb = toNumber(elements.calculators.filter.inputs.gainDb);
   const frequency = toNumber(elements.calculators.filter.inputs.frequency);
-  const capacitance = toNumber(elements.calculators.filter.inputs.capacitance) * 1e-6;
-  const knownResistance = toNumber(elements.calculators.filter.inputs.resistance);
   const zeta = toNumber(elements.calculators.filter.inputs.zeta);
-  const q = toNumber(elements.calculators.filter.inputs.q);
-  const omega = 2 * Math.PI * frequency;
-  const safeC = capacitance > 0 ? capacitance : NaN;
-  const safeF = frequency > 0 ? frequency : NaN;
-  const safeOmega = omega > 0 ? omega : NaN;
+  const span = Math.max(10, toNumber(elements.calculators.filter.inputs.span));
+  type = order === 1 && (type === "bandpass" || type === "notch") ? "lowpass" : type;
 
-  if (type === "rc-lowpass" || type === "rc-highpass") {
-    const resistance = 1 / (safeOmega * safeC);
-    const timeConstant = resistance * safeC;
-    const actualCutoff = 1 / (2 * Math.PI * knownResistance * safeC);
-    return {
-      type,
-      frequency: safeF,
-      capacitance: safeC,
-      resistance,
-      knownResistance,
-      actualCutoff,
-      timeConstant,
-      slope: 20,
-      phaseAtCutoff: type === "rc-lowpass" ? -45 : 45
-    };
-  }
-
-  if (type === "lc-lowpass") {
-    const inductance = 1 / (safeOmega * safeOmega * safeC);
-    const characteristicImpedance = Math.sqrt(inductance / safeC);
-    const dampingResistance = 2 * zeta * characteristicImpedance;
-    return {
-      type,
-      frequency: safeF,
-      capacitance: safeC,
-      inductance,
-      characteristicImpedance,
-      dampingResistance,
-      zeta,
-      slope: 40
-    };
-  }
-
-  const inductance = 1 / (safeOmega * safeOmega * safeC);
-  const notchResistance = safeOmega * inductance / q;
-  const bandwidth = safeF / q;
-  const lowEdge = safeF - bandwidth / 2;
-  const highEdge = safeF + bandwidth / 2;
-  return {
+  const config = {
+    order,
     type,
-    frequency: safeF,
-    capacitance: safeC,
-    inductance,
-    notchResistance,
-    q,
-    bandwidth,
-    lowEdge,
-    highEdge,
-    knownResistance
+    gainDb,
+    gain: 10 ** (gainDb / 20),
+    frequency,
+    omega0: 2 * Math.PI * frequency,
+    zeta: order === 1 ? 1 : zeta,
+    q: order === 1 ? null : 1 / (2 * zeta),
+    span
   };
+
+  const start = Math.max(0.001, frequency / span);
+  const stop = Math.max(start * 10, frequency * span);
+  const samples = 260;
+  const points = [];
+  for (let i = 0; i < samples; i += 1) {
+    const t = i / (samples - 1);
+    const freq = 10 ** (Math.log10(start) + (Math.log10(stop) - Math.log10(start)) * t);
+    const response = transferResponse(config, 2 * Math.PI * freq);
+    points.push({
+      frequency: freq,
+      magnitudeDb: 20 * Math.log10(Math.max(cAbs(response), 1e-12)),
+      phaseDeg: cPhaseDeg(response)
+    });
+  }
+  const unwrapped = unwrapPhases(points.map((point) => point.phaseDeg));
+  points.forEach((point, index) => { point.phaseDeg = unwrapped[index]; });
+
+  const passbandDb = gainDb;
+  const cutoff = interpolateCrossing(points, "magnitudeDb", passbandDb - 3);
+  const gainCross = interpolateCrossing(points, "magnitudeDb", 0);
+  const phaseCross = interpolateCrossing(points, "phaseDeg", -180);
+  const phaseMargin = gainCross ? 180 + gainCross.phaseDeg : Infinity;
+  const gainMargin = phaseCross ? -phaseCross.magnitudeDb : Infinity;
+  const peak = points.reduce((best, point) => point.magnitudeDb > best.magnitudeDb ? point : best, points[0]);
+
+  return {
+    ...config,
+    points,
+    cutoffFrequency: cutoff?.frequency || frequency,
+    gainCrossFrequency: gainCross?.frequency || null,
+    phaseCrossFrequency: phaseCross?.frequency || null,
+    phaseMargin,
+    gainMargin,
+    peakMagnitudeDb: peak.magnitudeDb,
+    peakFrequency: peak.frequency
+  };
+}
+
+function filterTypeLabel(result) {
+  const labels = { lowpass: "低通", highpass: "高通", bandpass: "带通", notch: "陷波" };
+  return `${result.order} 阶 ${labels[result.type]}`;
+}
+
+function drawBodeChart(result) {
+  const canvas = document.querySelector("#filter-bode-chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const pad = { left: 72, right: 32, top: 34, bottom: 42 };
+  const mid = height * 0.49;
+  const plotWidth = width - pad.left - pad.right;
+  const magTop = pad.top;
+  const magBottom = mid - 24;
+  const phaseTop = mid + 34;
+  const phaseBottom = height - pad.bottom;
+  const freqs = result.points.map((point) => point.frequency);
+  const mags = result.points.map((point) => point.magnitudeDb);
+  const phases = result.points.map((point) => point.phaseDeg);
+  const logMin = Math.log10(Math.min(...freqs));
+  const logMax = Math.log10(Math.max(...freqs));
+  const magMin = Math.floor((Math.min(...mags, -40) - 6) / 10) * 10;
+  const magMax = Math.ceil((Math.max(...mags, 10) + 6) / 10) * 10;
+  const phaseMin = Math.floor((Math.min(...phases, -180) - 20) / 45) * 45;
+  const phaseMax = Math.ceil((Math.max(...phases, 90) + 20) / 45) * 45;
+  const xFor = (freq) => pad.left + ((Math.log10(freq) - logMin) / (logMax - logMin)) * plotWidth;
+  const yMag = (db) => magBottom - ((db - magMin) / (magMax - magMin)) * (magBottom - magTop);
+  const yPhase = (deg) => phaseBottom - ((deg - phaseMin) / (phaseMax - phaseMin)) * (phaseBottom - phaseTop);
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#fffdf6";
+  ctx.fillRect(0, 0, width, height);
+
+  function drawPanel(top, bottom, min, max, label, yFor) {
+    ctx.strokeStyle = "rgba(19,34,56,.13)";
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "#566579";
+    ctx.font = "13px Noto Sans SC, sans-serif";
+    ctx.textAlign = "right";
+    const steps = 4;
+    for (let i = 0; i <= steps; i += 1) {
+      const value = min + (max - min) * i / steps;
+      const y = yFor(value);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(width - pad.right, y);
+      ctx.stroke();
+      ctx.fillText(formatNumber(value, 0), pad.left - 10, y + 4);
+    }
+    ctx.fillStyle = "#132238";
+    ctx.textAlign = "left";
+    ctx.font = "700 14px Noto Sans SC, sans-serif";
+    ctx.fillText(label, pad.left, top - 12);
+    ctx.strokeStyle = "rgba(19,34,56,.22)";
+    ctx.strokeRect(pad.left, top, plotWidth, bottom - top);
+  }
+
+  drawPanel(magTop, magBottom, magMin, magMax, "幅值 / dB", yMag);
+  drawPanel(phaseTop, phaseBottom, phaseMin, phaseMax, "相位 / deg", yPhase);
+
+  const decades = Math.ceil(logMax) - Math.floor(logMin);
+  ctx.fillStyle = "#566579";
+  ctx.textAlign = "center";
+  ctx.font = "12px Space Grotesk, sans-serif";
+  for (let d = 0; d <= decades; d += 1) {
+    const freq = 10 ** (Math.floor(logMin) + d);
+    if (freq < freqs[0] || freq > freqs[freqs.length - 1]) continue;
+    const x = xFor(freq);
+    ctx.strokeStyle = "rgba(19,34,56,.09)";
+    ctx.beginPath();
+    ctx.moveTo(x, magTop);
+    ctx.lineTo(x, magBottom);
+    ctx.moveTo(x, phaseTop);
+    ctx.lineTo(x, phaseBottom);
+    ctx.stroke();
+    ctx.fillText(formatEngineering(freq, "Hz", 1), x, height - 14);
+  }
+
+  function drawCurve(yFor, color, key) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    result.points.forEach((point, index) => {
+      const x = xFor(point.frequency);
+      const y = yFor(point[key]);
+      if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  drawCurve(yMag, "#0f766e", "magnitudeDb");
+  drawCurve(yPhase, "#c24718", "phaseDeg");
+
+  const markerX = xFor(result.cutoffFrequency);
+  ctx.strokeStyle = "rgba(194,71,24,.5)";
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath();
+  ctx.moveTo(markerX, magTop);
+  ctx.lineTo(markerX, phaseBottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#c24718";
+  ctx.textAlign = "center";
+  ctx.fillText("fc", markerX, magTop + 16);
 }
 
 function filterStatusItems(result) {
   const items = [];
-  const frequencyOk = result.frequency > 0;
-  const capacitanceOk = result.capacitance > 0;
+  const pmText = Number.isFinite(result.phaseMargin) ? `${formatNumber(result.phaseMargin, 1)}°` : "未出现 0 dB 穿越";
+  const gmText = Number.isFinite(result.gainMargin) ? `${formatNumber(result.gainMargin, 2)} dB` : "未出现 -180° 相位穿越";
 
   items.push({
-    level: frequencyOk && capacitanceOk ? "ok" : "bad",
-    text: frequencyOk && capacitanceOk
-      ? "输入频率和电容有效，已按目标频率反推元件值。"
-      : "频率和电容必须大于 0，否则公式会失效。"
+    level: result.frequency > 0 ? "ok" : "bad",
+    text: result.frequency > 0 ? `当前模型为 ${filterTypeLabel(result)}，中心/截止频率设为 ${formatNumber(result.frequency, 2)} Hz。` : "频率必须大于 0。"
   });
 
-  if (result.type.startsWith("rc")) {
-    items.push({
-      level: result.resistance >= 1 && result.resistance <= 1e6 ? "ok" : "warn",
-      text: `RC 反算电阻为 ${formatEngineering(result.resistance, "ohm", 2)}。太小会增加驱动负担，太大容易受漏电和噪声影响。`
-    });
-    items.push({
-      level: "ok",
-      text: `一阶 ${result.type === "rc-lowpass" ? "低通" : "高通"} 在截止频率处幅值约 -3 dB，相位约 ${result.phaseAtCutoff}°。`
-    });
-    return items;
-  }
+  items.push({
+    level: Number.isFinite(result.phaseMargin) ? result.phaseMargin >= 45 ? "ok" : result.phaseMargin >= 30 ? "warn" : "bad" : "ok",
+    text: `相位裕度 PM = ${pmText}。一般控制系统会希望 PM 大于 45°，这样瞬态振铃和超调更容易控制。`
+  });
 
-  if (result.type === "lc-lowpass") {
+  items.push({
+    level: Number.isFinite(result.gainMargin) ? result.gainMargin >= 6 ? "ok" : result.gainMargin >= 3 ? "warn" : "bad" : "ok",
+    text: `幅值裕度 GM = ${gmText}。GM 越大，代表增益变化后离失稳越远；没有 -180° 穿越通常表示这个开环模型在扫描范围内没有典型幅值裕度点。`
+  });
+
+  if (result.order === 2) {
     items.push({
       level: result.zeta >= 0.5 && result.zeta <= 1.2 ? "ok" : "warn",
-      text: `阻尼系数 ζ = ${formatNumber(result.zeta, 3)}。ζ≈0.707 常用于较平坦响应，ζ 太小会尖峰明显。`
+      text: `二阶阻尼 ζ = ${formatNumber(result.zeta, 3)}，等效 Q = ${formatNumber(result.q, 3)}。ζ 小会更尖锐，ζ 大会更钝、更慢。`
     });
-    items.push({
-      level: result.dampingResistance > 0 ? "ok" : "bad",
-      text: `按 Rcrit = 2ζsqrt(L/C) 得到阻尼/负载参考电阻 ${formatEngineering(result.dampingResistance, "ohm", 2)}。`
-    });
-    return items;
   }
 
   items.push({
-    level: result.q >= 2 && result.q <= 50 ? "ok" : "warn",
-    text: `陷波 Q = ${formatNumber(result.q, 2)}，带宽约 ${formatNumber(result.bandwidth, 2)} Hz。Q 越大陷波越窄，但对元件误差越敏感。`
+    level: result.peakMagnitudeDb <= result.gainDb + 3 ? "ok" : "warn",
+    text: `扫描范围内峰值幅值为 ${formatNumber(result.peakMagnitudeDb, 2)} dB，出现在 ${formatNumber(result.peakFrequency, 2)} Hz。峰值明显高于通带增益时，要留意共振或噪声放大。`
   });
-  items.push({
-    level: result.notchResistance > 0 ? "ok" : "bad",
-    text: `按 Q = ω0L/R 得到串联等效电阻 ${formatEngineering(result.notchResistance, "ohm", 2)}。实际还要算电感 DCR 和电容 ESR。`
-  });
+
   return items;
 }
 
@@ -758,46 +928,17 @@ function renderFilterChecks(items) {
 
 function computeFilter() {
   const result = computeFilterValues();
-  const typeLabel = {
-    "rc-lowpass": "RC 低通",
-    "rc-highpass": "RC 高通",
-    "lc-lowpass": "LC 低通",
-    "rlc-notch": "RLC 陷波"
-  }[result.type];
-
-  if (result.type.startsWith("rc")) {
-    renderResultCards(elements.calculators.filter.output, [
-      { label: "滤波器类型", value: typeLabel },
-      { label: "反算电阻 R", value: formatEngineering(result.resistance, "ohm", 2) },
-      { label: "已知电容 C", value: formatEngineering(result.capacitance, "F", 2) },
-      { label: "时间常数 τ", value: formatEngineering(result.timeConstant, "s", 2) },
-      { label: "截止频率 fc", value: `${formatNumber(result.frequency, 2)} Hz` },
-      { label: "输入 R/C 实际 fc", value: `${formatNumber(result.actualCutoff, 2)} Hz` },
-      { label: "滚降斜率", value: `${result.slope} dB/dec` }
-    ]);
-  } else if (result.type === "lc-lowpass") {
-    renderResultCards(elements.calculators.filter.output, [
-      { label: "滤波器类型", value: typeLabel },
-      { label: "反算电感 L", value: formatEngineering(result.inductance, "H", 2) },
-      { label: "已知电容 C", value: formatEngineering(result.capacitance, "F", 2) },
-      { label: "特性阻抗 sqrt(L/C)", value: formatEngineering(result.characteristicImpedance, "ohm", 2) },
-      { label: "阻尼/负载参考 R", value: formatEngineering(result.dampingResistance, "ohm", 2) },
-      { label: "滚降斜率", value: `${result.slope} dB/dec` }
-    ]);
-  } else {
-    renderResultCards(elements.calculators.filter.output, [
-      { label: "滤波器类型", value: typeLabel },
-      { label: "反算电感 L", value: formatEngineering(result.inductance, "H", 2) },
-      { label: "已知电容 C", value: formatEngineering(result.capacitance, "F", 2) },
-      { label: "串联电阻 R", value: formatEngineering(result.notchResistance, "ohm", 2) },
-      { label: "陷波带宽 BW", value: `${formatNumber(result.bandwidth, 2)} Hz` },
-      { label: "约略频带", value: `${formatNumber(result.lowEdge, 1)} - ${formatNumber(result.highEdge, 1)} Hz` }
-    ]);
-  }
-
+  renderResultCards(elements.calculators.filter.output, [
+    { label: "滤波器模型", value: filterTypeLabel(result) },
+    { label: "截止/固有频率", value: `${formatNumber(result.cutoffFrequency, 2)} Hz` },
+    { label: "通带增益 K", value: `${formatNumber(result.gainDb, 2)} dB` },
+    { label: "相位裕度 PM", value: Number.isFinite(result.phaseMargin) ? `${formatNumber(result.phaseMargin, 1)}°` : "未穿越" },
+    { label: "幅值裕度 GM", value: Number.isFinite(result.gainMargin) ? `${formatNumber(result.gainMargin, 2)} dB` : "未穿越" },
+    { label: "峰值幅值", value: `${formatNumber(result.peakMagnitudeDb, 2)} dB` }
+  ]);
+  drawBodeChart(result);
   renderFilterChecks(filterStatusItems(result));
 }
-
 function initEnhancedLclControls() {
   const resetButton = document.querySelector("#lcl-reset");
   if (resetButton) {

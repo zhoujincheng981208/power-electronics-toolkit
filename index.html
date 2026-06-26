@@ -12,7 +12,17 @@
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero">
+    <nav class="side-nav" aria-label="页面导航">
+      <p class="eyebrow">Navigation</p>
+      <a href="#overview">总览</a>
+      <a href="#dc-calculators">Buck / Boost</a>
+      <a href="#lcl-designer">LCL 设计</a>
+      <a href="#filter-designer">软件滤波器</a>
+      <a href="#tool-library">工具库</a>
+      <a href="#notes">个人备注</a>
+    </nav>
+
+    <header id="overview" class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Power Electronics Workspace</p>
         <h1>电力电子插件集合网页</h1>
@@ -34,7 +44,7 @@
       </div>
     </header>
 
-    <section class="panel calculator-hub">
+    <section id="dc-calculators" class="panel calculator-hub">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Quick Calculators</p>
@@ -69,7 +79,7 @@
           </div>
           <div id="boost-results" class="result-grid"></div>
         </article>
-        <article class="calculator-card wide lcl-designer">
+        <article id="lcl-designer" class="calculator-card wide lcl-designer">
           <div class="calculator-head">
             <h3>LCL 滤波器设计器</h3>
             <span>三相并网逆变器工程初设</span>
@@ -120,46 +130,52 @@
           <p class="panel-note">这些结果用于初步设计和 sanity check，最终还要结合控制延时、采样频率、阻尼方式、并网标准和仿真结果确认。</p>
         </article>
 
-        <article class="calculator-card wide filter-designer">
+        <article id="filter-designer" class="calculator-card wide filter-designer">
           <div class="calculator-head">
-            <h3>通用滤波器设计插件</h3>
-            <span>RC / LC / RLC 初值计算</span>
+            <h3>软件滤波器设计插件</h3>
+            <span>一阶 / 二阶传递函数与伯德图分析</span>
           </div>
           <div class="form-grid three-up">
-            <label>滤波器类型
-              <select id="filter-type">
-                <option value="rc-lowpass">RC 一阶低通</option>
-                <option value="rc-highpass">RC 一阶高通</option>
-                <option value="lc-lowpass">LC 二阶低通</option>
-                <option value="rlc-notch">串联 RLC 陷波</option>
+            <label>滤波器阶数
+              <select id="filter-order">
+                <option value="1">一阶</option>
+                <option value="2">二阶</option>
               </select>
             </label>
-            <label>目标频率 fc / f0 (Hz)<input id="filter-frequency" type="number" value="1000" step="1"></label>
-            <label>已知电容 C (uF)<input id="filter-capacitance" type="number" value="1" step="0.01"></label>
-            <label>已知电阻 R (ohm)<input id="filter-resistance" type="number" value="10" step="0.1"></label>
-            <label>阻尼系数 ζ<input id="filter-zeta" type="number" value="0.707" step="0.01"></label>
-            <label>陷波品质因数 Q<input id="filter-q" type="number" value="10" step="0.1"></label>
+            <label>滤波器类型
+              <select id="filter-type">
+                <option value="lowpass">低通</option>
+                <option value="highpass">高通</option>
+                <option value="bandpass">带通（二阶）</option>
+                <option value="notch">陷波（二阶）</option>
+              </select>
+            </label>
+            <label>增益 K (dB)<input id="filter-gain-db" type="number" value="0" step="0.5"></label>
+            <label>截止 / 固有频率 (Hz)<input id="filter-frequency" type="number" value="1000" step="1"></label>
+            <label>阻尼系数 ζ（二阶）<input id="filter-zeta" type="number" value="0.707" step="0.01"></label>
+            <label>频率范围倍数<input id="filter-span" type="number" value="100" step="10"></label>
           </div>
           <div id="filter-results" class="result-grid"></div>
+          <canvas id="filter-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
           <div id="filter-checks" class="check-list"></div>
           <details class="theory-box">
             <summary>这个插件怎么算</summary>
             <div class="theory-grid">
               <article>
-                <h4>RC 低通 / 高通</h4>
-                <p>截止频率 fc = 1 / (2πRC)。给定 fc 和 C 时，反算 R = 1 / (2πfcC)；同时用你输入的 R/C 回算实际 fc，方便选标准阻值。</p>
+                <h4>一阶低通 / 高通</h4>
+                <p>低通：H(s)=K*wc/(s+wc)。高通：H(s)=K*s/(s+wc)。在 wc 附近幅值约下降 3 dB，相位分别靠近 -45° / +45°。</p>
               </article>
               <article>
-                <h4>LC 二阶低通</h4>
-                <p>谐振频率 f0 = 1 / (2πsqrt(LC))。给定 f0 和 C 时，反算 L = 1 / ((2πf0)^2 * C)。阻尼电阻近似 Rcrit = 2ζsqrt(L/C)。</p>
+                <h4>二阶标准型</h4>
+                <p>分母统一使用 s^2 + 2ζwns + wn^2。ζ 越小越容易出现尖峰和振铃，ζ≈0.707 接近 Butterworth 响应。</p>
               </article>
               <article>
-                <h4>串联 RLC 陷波</h4>
-                <p>中心频率 f0 = 1 / (2πsqrt(LC))，品质因数 Q = ω0L / R。给定 Q 后，R = ω0L / Q，带宽 BW ≈ f0 / Q。</p>
+                <h4>幅值裕度 / 相位裕度</h4>
+                <p>相位裕度看 0 dB 穿越频率处距离 -180° 还有多少；幅值裕度看相位穿越 -180° 时距离 0 dB 还有多少。它们常用于闭环稳定性直觉判断。</p>
               </article>
               <article>
                 <h4>使用边界</h4>
-                <p>这里给的是初值，不包含寄生参数、ESR、ESL、运放带宽、磁芯饱和和热设计。高频或大功率场景一定要仿真和实测。</p>
+                <p>这里按连续域传递函数做分析，适合概念设计和控制直觉。真正落到 DSP/MCU 时，还要考虑采样频率、离散化方法、量化误差和执行延时。</p>
               </article>
             </div>
           </details>
@@ -187,7 +203,7 @@
           </ul>
         </section>
 
-        <section class="panel sticky-panel">
+        <section id="notes" class="panel sticky-panel">
           <h2>个人工作台</h2>
           <p class="panel-note">这里会显示你收藏的工具和快速备注。数据默认保存在当前浏览器。</p>
           <div id="favorites-board" class="favorites-board"></div>
@@ -195,7 +211,7 @@
         </section>
       </aside>
 
-      <section class="content-area">
+      <section id="tool-library" class="content-area">
         <div class="section-heading">
           <div>
             <p class="eyebrow">Tool Shelf</p>
