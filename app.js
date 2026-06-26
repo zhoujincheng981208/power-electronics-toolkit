@@ -677,7 +677,7 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
     if (method === "matched") {
       const coeffs = type === "highpass"
         ? { b0: gain * alpha, b1: -gain * alpha, b2: 0, a1: alpha, a2: 0 }
-        : { b0: gain * (1 - alpha), b1: 0, b2: 0, a1: alpha, a2: 0 };
+        : { b0: 1 - alpha, b1: 0, b2: 0, a1: alpha, a2: 0 };
       return {
         coeffs,
         alpha,
@@ -687,11 +687,11 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
         analog:
           type === "highpass"
             ? "H(s) = K*tau*s / (tau*s + 1)"
-            : "H(s) = K / (tau*s + 1)",
-      zForm:
-        type === "highpass"
-          ? "H(z) = K*alpha*(1 - z^-1) / (1 - alpha*z^-1)"
-          : "H(z) = K*(1 - alpha) / (1 - alpha*z^-1)"
+            : "H(s) = 1 / (tau*s + 1)",
+        zForm:
+          type === "highpass"
+            ? "H(z) = K*alpha*(1 - z^-1) / (1 - alpha*z^-1)"
+            : "H(z) = a / (1 - (1-a)*z^-1),  a = 1 - alpha"
       };
     }
 
@@ -800,6 +800,7 @@ function setCoefficientInputs(coeffs) {
 function syncFilterTypeOptions() {
   const inputs = elements.calculators.filter.inputs;
   const order = Number(inputs.order.value);
+  const isDesignMode = !inputs.modeAnalyze.checked;
   [...inputs.type.options].forEach((option) => {
     option.disabled = order === 1 && (option.value === "bandpass" || option.value === "notch");
   });
@@ -810,9 +811,22 @@ function syncFilterTypeOptions() {
   document.querySelectorAll(".second-order-coeff").forEach((node) => {
     node.classList.toggle("hidden", order === 1);
   });
+  const onePoleLowpass = order === 1 && isDesignMode && inputs.method.value === "matched" && inputs.type.value === "lowpass";
+  const b0Label = document.querySelector("#filter-b0-label");
+  const b1Label = document.querySelector("#filter-b1-label");
+  const a1Label = document.querySelector("#filter-a1-label");
+  const b1Wrap = document.querySelector("#filter-b1-wrap");
+  if (b0Label) b0Label.textContent = onePoleLowpass ? "a" : "b0";
+  if (b1Label) b1Label.textContent = "b1";
+  if (a1Label) a1Label.textContent = onePoleLowpass ? "1-a" : "a1";
+  if (b1Wrap) b1Wrap.classList.toggle("hidden", onePoleLowpass);
+  inputs.gainDb.disabled = onePoleLowpass;
+  if (onePoleLowpass) inputs.gainDb.value = 0;
   const equationNote = document.querySelector("#filter-equation-note");
   if (equationNote) {
-    equationNote.textContent = order === 1
+    equationNote.textContent = onePoleLowpass
+      ? "一阶低通离散公式：y[n] = a*x[n] + (1-a)*y[n-1]，对应 H(z)=a/(1-(1-a)z^-1)。"
+      : order === 1
       ? "一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]，对应 H(z)=(b0+b1z^-1)/(1-a1z^-1)。"
       : "二阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]，这里默认 a0 = 1。";
   }
@@ -1004,7 +1018,12 @@ function drawBodeChart(result) {
 
 function filterStatusItems(result) {
   const items = [];
-  const coefficientText = `b=[${formatNumber(result.coeffs.b0, 6)}, ${formatNumber(result.coeffs.b1, 6)}, ${formatNumber(result.coeffs.b2, 6)}], a=[1, ${formatNumber(result.coeffs.a1, 6)}, ${formatNumber(result.coeffs.a2, 6)}]`;
+  const onePoleLowpass = result.order === 1 && result.design?.method === "matched" && result.type === "lowpass";
+  const coefficientText = onePoleLowpass
+    ? `a=${formatNumber(result.coeffs.b0, 6)}, 1-a=${formatNumber(result.coeffs.a1, 6)}`
+    : result.order === 1
+    ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=${formatNumber(result.coeffs.b1, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
+    : `b=[${formatNumber(result.coeffs.b0, 6)}, ${formatNumber(result.coeffs.b1, 6)}, ${formatNumber(result.coeffs.b2, 6)}], a=[1, ${formatNumber(result.coeffs.a1, 6)}, ${formatNumber(result.coeffs.a2, 6)}]`;
   items.push({
     level: result.sampleRate > 0 && result.frequency < result.nyquist ? "ok" : "bad",
     text: `采样频率 fs=${formatNumber(result.sampleRate, 2)} Hz，Nyquist=${formatNumber(result.nyquist, 2)} Hz。设计时 fc 必须小于 fs/2。`
@@ -1044,7 +1063,14 @@ function renderFilterDerivation(result) {
   container.innerHTML = "";
 
   const coeffs = result.coeffs;
-  const normalized = result.order === 1
+  const onePoleLowpass = result.order === 1 && result.design?.method === "matched" && result.type === "lowpass";
+  const normalized = onePoleLowpass
+    ? [
+        `H(z) = a / (1 - (1-a)*z^-1)`,
+        `a = ${formatNumber(coeffs.b0, 8)}`,
+        `1-a = ${formatNumber(coeffs.a1, 8)}`
+      ].join("\n")
+    : result.order === 1
     ? [
         `H(z) = (b0 + b1*z^-1) / (1 - a1*z^-1)`,
         `b0 = ${formatNumber(coeffs.b0, 8)}`,
@@ -1060,7 +1086,12 @@ function renderFilterDerivation(result) {
         `a2 = ${formatNumber(coeffs.a2, 8)}`
       ].join("\n");
 
-  const timeDomain = result.order === 1
+  const timeDomain = onePoleLowpass
+    ? [
+        "y[n] = a*x[n] + (1-a)*y[n-1]",
+        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.a1, 8)}*y[n-1]`
+      ].join("\n")
+    : result.order === 1
     ? [
         "y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]",
         `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.a1, 8)}*y[n-1]`
@@ -1100,8 +1131,10 @@ function renderFilterDerivation(result) {
           "",
           result.type === "highpass"
             ? "归一化后：b0 = K*alpha, b1 = -K*alpha, a1 = alpha"
-            : "归一化后：b0 = K*(1-alpha), b1 = 0, a1 = alpha",
-          "这里是一阶离散 IIR：b2 = 0, a2 = 0，不参与一阶差分方程。",
+            : "令 a = 1-alpha，所以 1-a = alpha，H(z)=a/(1-(1-a)z^-1)。",
+          result.type === "highpass"
+            ? "这里是一阶高通 IIR：b2 = 0, a2 = 0。"
+            : "这里是一阶低通软件滤波器：只需要 a 和 1-a，不显示 b1/b2/a2。",
           "",
           normalized
         ].join("\n")

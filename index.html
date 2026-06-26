@@ -168,10 +168,10 @@
           <div class="coefficient-panel">
             <p id="filter-equation-note" class="panel-note">一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]，对应 H(z)=(b0+b1z^-1)/(1-a1z^-1)。</p>
             <div class="form-grid three-up">
-              <label>b0<input id="filter-b0" type="number" value="0.067455" step="0.000001"></label>
-              <label>b1<input id="filter-b1" type="number" value="0.134911" step="0.000001"></label>
+              <label><span id="filter-b0-label">b0</span><input id="filter-b0" type="number" value="0.067455" step="0.000001"></label>
+              <label id="filter-b1-wrap"><span id="filter-b1-label">b1</span><input id="filter-b1" type="number" value="0.134911" step="0.000001"></label>
               <label class="second-order-coeff">b2<input id="filter-b2" type="number" value="0.067455" step="0.000001"></label>
-              <label>a1<input id="filter-a1" type="number" value="-1.14298" step="0.000001"></label>
+              <label><span id="filter-a1-label">a1</span><input id="filter-a1" type="number" value="-1.14298" step="0.000001"></label>
               <label class="second-order-coeff">a2<input id="filter-a2" type="number" value="0.412802" step="0.000001"></label>
               <label>分析点频率 (Hz)<input id="filter-probe-frequency" type="number" value="1000" step="1"></label>
             </div>
