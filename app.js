@@ -654,57 +654,86 @@ function interpolateCrossing(points, key, target, direction = "any") {
   return null;
 }
 
+function normalizeIir(n0, n1, n2, d0, d1, d2) {
+  return {
+    b0: n0 / d0,
+    b1: n1 / d0,
+    b2: n2 / d0,
+    a1: d1 / d0,
+    a2: d2 / d0
+  };
+}
+
 function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb }) {
   const safeFc = Math.min(Math.max(frequency, 0.001), sampleRate * 0.499);
   const gain = 10 ** (gainDb / 20);
+  const c = 2 * sampleRate;
+  const omega = c * Math.tan(Math.PI * safeFc / sampleRate);
+  const safeQ = Math.max(q, 0.001);
 
   if (order === 1) {
-    const alpha = Math.exp(-2 * Math.PI * safeFc / sampleRate);
-    if (type === "highpass") {
-      return { b0: gain * alpha, b1: -gain * alpha, b2: 0, a1: -alpha, a2: 0 };
-    }
-    const beta = 1 - alpha;
-    return { b0: gain * beta, b1: 0, b2: 0, a1: -alpha, a2: 0 };
+    const d0 = c + omega;
+    const d1 = omega - c;
+    const coeffs = type === "highpass"
+      ? normalizeIir(gain * c, -gain * c, 0, d0, d1, 0)
+      : normalizeIir(gain * omega, gain * omega, 0, d0, d1, 0);
+    return {
+      coeffs,
+      omega,
+      analog:
+        type === "highpass"
+          ? "H(s) = K*s / (s + wc)"
+          : "H(s) = K*wc / (s + wc)",
+      zForm:
+        type === "highpass"
+          ? "H(z) = K*2fs*(1 - z^-1) / [(2fs + wc) + (wc - 2fs)z^-1]"
+          : "H(z) = K*wc*(1 + z^-1) / [(2fs + wc) + (wc - 2fs)z^-1]"
+    };
   }
 
-  const omega = 2 * Math.PI * safeFc / sampleRate;
-  const sin = Math.sin(omega);
-  const cos = Math.cos(omega);
-  const alpha = sin / (2 * Math.max(q, 0.001));
-  let b0;
-  let b1;
-  let b2;
-  let a0;
-  let a1;
-  let a2;
+  const damping = omega / safeQ;
+  const c2 = c * c;
+  const omega2 = omega * omega;
+  const d0 = c2 + damping * c + omega2;
+  const d1 = -2 * c2 + 2 * omega2;
+  const d2 = c2 - damping * c + omega2;
+  let n0;
+  let n1;
+  let n2;
+  let analog;
+  let zNumerator;
 
   if (type === "highpass") {
-    b0 = (1 + cos) / 2;
-    b1 = -(1 + cos);
-    b2 = (1 + cos) / 2;
+    n0 = gain * c2;
+    n1 = -2 * gain * c2;
+    n2 = gain * c2;
+    analog = "H(s) = K*s^2 / (s^2 + (w0/Q)s + w0^2)";
+    zNumerator = "K*(2fs)^2*(1 - 2z^-1 + z^-2)";
   } else if (type === "bandpass") {
-    b0 = alpha;
-    b1 = 0;
-    b2 = -alpha;
+    n0 = gain * damping * c;
+    n1 = 0;
+    n2 = -gain * damping * c;
+    analog = "H(s) = K*(w0/Q)s / (s^2 + (w0/Q)s + w0^2)";
+    zNumerator = "K*(w0/Q)*2fs*(1 - z^-2)";
   } else if (type === "notch") {
-    b0 = 1;
-    b1 = -2 * cos;
-    b2 = 1;
+    n0 = gain * (c2 + omega2);
+    n1 = gain * (-2 * c2 + 2 * omega2);
+    n2 = gain * (c2 + omega2);
+    analog = "H(s) = K*(s^2 + w0^2) / (s^2 + (w0/Q)s + w0^2)";
+    zNumerator = "K*[(2fs)^2(1 - 2z^-1 + z^-2) + w0^2(1 + 2z^-1 + z^-2)]";
   } else {
-    b0 = (1 - cos) / 2;
-    b1 = 1 - cos;
-    b2 = (1 - cos) / 2;
+    n0 = gain * omega2;
+    n1 = 2 * gain * omega2;
+    n2 = gain * omega2;
+    analog = "H(s) = K*w0^2 / (s^2 + (w0/Q)s + w0^2)";
+    zNumerator = "K*w0^2*(1 + 2z^-1 + z^-2)";
   }
 
-  a0 = 1 + alpha;
-  a1 = -2 * cos;
-  a2 = 1 - alpha;
   return {
-    b0: gain * b0 / a0,
-    b1: gain * b1 / a0,
-    b2: gain * b2 / a0,
-    a1: a1 / a0,
-    a2: a2 / a0
+    coeffs: normalizeIir(n0, n1, n2, d0, d1, d2),
+    omega,
+    analog,
+    zForm: `H(z) = ${zNumerator} / [D0 + D1*z^-1 + D2*z^-2]`
   };
 }
 
@@ -736,8 +765,20 @@ function setCoefficientInputs(coeffs) {
   });
 }
 
+function syncFilterTypeOptions() {
+  const inputs = elements.calculators.filter.inputs;
+  const order = Number(inputs.order.value);
+  [...inputs.type.options].forEach((option) => {
+    option.disabled = order === 1 && (option.value === "bandpass" || option.value === "notch");
+  });
+  if (order === 1 && (inputs.type.value === "bandpass" || inputs.type.value === "notch")) {
+    inputs.type.value = "lowpass";
+  }
+}
+
 function computeFilterValues() {
   const inputs = elements.calculators.filter.inputs;
+  syncFilterTypeOptions();
   const mode = inputs.modeAnalyze.checked ? "analyze" : "design";
   const sampleRate = toNumber(inputs.sampleRate);
   const nyquist = sampleRate / 2;
@@ -748,8 +789,11 @@ function computeFilterValues() {
   const q = toNumber(inputs.q);
   const gainDb = toNumber(inputs.gainDb);
   const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
-  const coeffs = mode === "design"
+  const design = mode === "design"
     ? designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb })
+    : null;
+  const coeffs = design
+    ? design.coeffs
     : {
         b0: toNumber(inputs.b0),
         b1: toNumber(inputs.b1),
@@ -794,6 +838,7 @@ function computeFilterValues() {
     frequency,
     q,
     gainDb,
+    design,
     probeFrequency,
     coeffs,
     points,
@@ -940,6 +985,60 @@ function filterStatusItems(result) {
   return items;
 }
 
+function createDerivationBlock(title, body) {
+  const block = document.createElement("article");
+  const heading = document.createElement("h4");
+  const pre = document.createElement("pre");
+  heading.textContent = title;
+  pre.textContent = body;
+  block.append(heading, pre);
+  return block;
+}
+
+function renderFilterDerivation(result) {
+  const container = document.querySelector("#filter-derivation");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const coeffs = result.coeffs;
+  const normalized = [
+    `H(z) = (b0 + b1*z^-1 + b2*z^-2) / (1 + a1*z^-1 + a2*z^-2)`,
+    `b0 = ${formatNumber(coeffs.b0, 8)}`,
+    `b1 = ${formatNumber(coeffs.b1, 8)}`,
+    `b2 = ${formatNumber(coeffs.b2, 8)}`,
+    `a1 = ${formatNumber(coeffs.a1, 8)}`,
+    `a2 = ${formatNumber(coeffs.a2, 8)}`
+  ].join("\n");
+
+  const timeDomain = [
+    "y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]",
+    `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.b2, 8)}*x[n-2]`,
+    `       - (${formatNumber(coeffs.a1, 8)})*y[n-1] - (${formatNumber(coeffs.a2, 8)})*y[n-2]`
+  ].join("\n");
+
+  if (result.mode === "design" && result.design) {
+    const fs2 = 2 * result.sampleRate;
+    const prewarp = [
+      `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
+      `w = 2*fs*tan(pi*fc/fs) = ${formatNumber(result.design.omega, 6)} rad/s`,
+      `s = 2*fs*(1 - z^-1)/(1 + z^-1) = ${formatNumber(fs2, 4)}*(1 - z^-1)/(1 + z^-1)`
+    ].join("\n");
+    container.append(
+      createDerivationBlock("1. s 域模拟原型", result.design.analog),
+      createDerivationBlock("2. 预畸变和双线性变换", prewarp),
+      createDerivationBlock("3. z 域形式与归一化系数", `${result.design.zForm}\n\n${normalized}`),
+      createDerivationBlock("4. 时域差分方程", timeDomain)
+    );
+    return;
+  }
+
+  container.append(
+    createDerivationBlock("1. 已输入 z 域传递函数", normalized),
+    createDerivationBlock("2. 频响分析代入", "令 z = exp(j*2*pi*f/fs)，扫描 f = 0 ... fs/2，得到幅值和相位曲线。"),
+    createDerivationBlock("3. 时域差分方程", timeDomain)
+  );
+}
+
 function computeFilter() {
   const result = computeFilterValues();
   const modeLabel = result.mode === "design" ? "按指标设计" : "按系数分析";
@@ -951,6 +1050,7 @@ function computeFilter() {
     { label: "Nyquist 增益", value: `${formatNumber(result.nyquistGainDb, 2)} dB` },
     { label: "稳定性", value: result.stable ? "稳定" : "不稳定" }
   ]);
+  renderFilterDerivation(result);
   drawBodeChart(result);
   renderChecks("#filter-checks", filterStatusItems(result));
 }
