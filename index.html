@@ -179,7 +179,7 @@
             <div class="theory-grid">
               <article>
                 <h4>设计模式</h4>
-                <p>输入采样频率 fs、目标频率 fc、阶数和类型。二阶使用标准 biquad 公式生成 b0、b1、b2、a1、a2；一阶使用指数平滑/互补高通形式。</p>
+                <p>一阶低通使用 H(s)=K/(τs+1)，一阶高通使用 H(s)=Kτs/(τs+1)。τ 由预畸变后的 wc 得到，再用 Tustin 变换生成 z 域系数。</p>
               </article>
               <article>
                 <h4>分析模式</h4>

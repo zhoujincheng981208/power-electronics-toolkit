@@ -672,6 +672,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb }) 
   const safeQ = Math.max(q, 0.001);
 
   if (order === 1) {
+    const tau = 1 / omega;
+    const m = 2 * sampleRate * tau;
     const d0 = c + omega;
     const d1 = omega - c;
     const coeffs = type === "highpass"
@@ -680,14 +682,16 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb }) 
     return {
       coeffs,
       omega,
+      tau,
+      firstOrderM: m,
       analog:
         type === "highpass"
-          ? "H(s) = K*s / (s + wc)"
-          : "H(s) = K*wc / (s + wc)",
+          ? "H(s) = K*tau*s / (tau*s + 1)"
+          : "H(s) = K / (tau*s + 1)",
       zForm:
         type === "highpass"
-          ? "H(z) = K*2fs*(1 - z^-1) / [(2fs + wc) + (wc - 2fs)z^-1]"
-          : "H(z) = K*wc*(1 + z^-1) / [(2fs + wc) + (wc - 2fs)z^-1]"
+          ? "H(z) = K*m*(1 - z^-1) / [(m + 1) + (1 - m)z^-1],  m = 2fs*tau"
+          : "H(z) = K*(1 + z^-1) / [(m + 1) + (1 - m)z^-1],  m = 2fs*tau"
     };
   }
 
@@ -1018,15 +1022,36 @@ function renderFilterDerivation(result) {
 
   if (result.mode === "design" && result.design) {
     const fs2 = 2 * result.sampleRate;
-    const prewarp = [
-      `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
-      `w = 2*fs*tan(pi*fc/fs) = ${formatNumber(result.design.omega, 6)} rad/s`,
-      `s = 2*fs*(1 - z^-1)/(1 + z^-1) = ${formatNumber(fs2, 4)}*(1 - z^-1)/(1 + z^-1)`
-    ].join("\n");
+    const prewarp = result.order === 1
+      ? [
+          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
+          `数字域目标角频率：wd = 2*pi*fc/fs`,
+          `Tustin 预畸变：wc = 2*fs*tan(wd/2) = ${formatNumber(result.design.omega, 6)} rad/s`,
+          `一阶时间常数：tau = 1/wc = ${formatNumber(result.design.tau, 10)} s`,
+          `双线性变换：s = (2/Ts)*(1 - z^-1)/(1 + z^-1),  Ts = 1/fs`,
+          `记 m = 2*fs*tau = ${formatNumber(result.design.firstOrderM, 8)}`
+        ].join("\n")
+      : [
+          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
+          `w0 = 2*fs*tan(pi*fc/fs) = ${formatNumber(result.design.omega, 6)} rad/s`,
+          `s = 2*fs*(1 - z^-1)/(1 + z^-1) = ${formatNumber(fs2, 4)}*(1 - z^-1)/(1 + z^-1)`
+        ].join("\n");
+    const zDetail = result.order === 1
+      ? [
+          result.design.zForm,
+          "",
+          result.type === "highpass"
+            ? "归一化后：b0 = K*m/(m+1), b1 = -K*m/(m+1), a1 = (1-m)/(m+1)"
+            : "归一化后：b0 = K/(m+1), b1 = K/(m+1), a1 = (1-m)/(m+1)",
+          "这里 a0 已归一化为 1，b2 = 0, a2 = 0。",
+          "",
+          normalized
+        ].join("\n")
+      : `${result.design.zForm}\n\n${normalized}`;
     container.append(
       createDerivationBlock("1. s 域模拟原型", result.design.analog),
       createDerivationBlock("2. 预畸变和双线性变换", prewarp),
-      createDerivationBlock("3. z 域形式与归一化系数", `${result.design.zForm}\n\n${normalized}`),
+      createDerivationBlock("3. z 域形式与归一化系数", zDetail),
       createDerivationBlock("4. 时域差分方程", timeDomain)
     );
     return;
