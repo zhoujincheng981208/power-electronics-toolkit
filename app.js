@@ -687,8 +687,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
         method,
         analog:
           type === "highpass"
-            ? "H(jω) = K*(jω/ωc) / (1 + jω/ωc)\n等价 s 域：H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
-            : "H(jω) = 1 / (1 + jω/ωc)\n等价 s 域：H(s) = 1 / (tau*s + 1),  tau = 1/ωc",
+            ? "H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
+            : "H(s) = 1 / (tau*s + 1),  tau = 1/ωc",
         zForm:
           type === "highpass"
             ? "H(z) = K*(1+alpha)/2*(1 - z^-1) / (1 - alpha*z^-1)"
@@ -710,8 +710,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
       firstOrderM: m,
       analog:
         type === "highpass"
-          ? "H(jω) = K*(jω/ωc) / (1 + jω/ωc)\n等价 s 域：H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
-          : "H(jω) = K / (1 + jω/ωc)\n等价 s 域：H(s) = K / (tau*s + 1),  tau = 1/ωc",
+          ? "H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
+          : "H(s) = K / (tau*s + 1),  tau = 1/ωc",
       zForm:
         type === "highpass"
           ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
@@ -735,25 +735,25 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
     n0 = gain * c2;
     n1 = -2 * gain * c2;
     n2 = gain * c2;
-    analog = "H(jω) = K*(jω/ω0)^2 / [(jω/ω0)^2 + (jω)/(Qω0) + 1]\n等价 s 域：H(s) = K*s^2 / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*s^2 / (s^2 + (ω0/Q)s + ω0^2)";
     zNumerator = "K*(2fs)^2*(1 - 2z^-1 + z^-2)";
   } else if (type === "bandpass") {
     n0 = gain * damping * c;
     n1 = 0;
     n2 = -gain * damping * c;
-    analog = "H(jω) = K*(jω)/(Qω0) / [(jω/ω0)^2 + (jω)/(Qω0) + 1]\n等价 s 域：H(s) = K*(ω0/Q)s / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*(ω0/Q)s / (s^2 + (ω0/Q)s + ω0^2)";
     zNumerator = "K*(w0/Q)*2fs*(1 - z^-2)";
   } else if (type === "notch") {
     n0 = gain * (c2 + omega2);
     n1 = gain * (-2 * c2 + 2 * omega2);
     n2 = gain * (c2 + omega2);
-    analog = "H(jω) = K*[(jω/ω0)^2 + 1] / [(jω/ω0)^2 + (jω)/(Qω0) + 1]\n等价 s 域：H(s) = K*(s^2 + ω0^2) / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*(s^2 + ω0^2) / (s^2 + (ω0/Q)s + ω0^2)";
     zNumerator = "K*[(2fs)^2(1 - 2z^-1 + z^-2) + w0^2(1 + 2z^-1 + z^-2)]";
   } else {
     n0 = gain * omega2;
     n1 = 2 * gain * omega2;
     n2 = gain * omega2;
-    analog = "H(jω) = K / [(jω/ω0)^2 + (jω)/(Qω0) + 1]\n等价 s 域：H(s) = K*ω0^2 / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*ω0^2 / (s^2 + (ω0/Q)s + ω0^2)";
     zNumerator = "K*w0^2*(1 + 2z^-1 + z^-2)";
   }
 
@@ -1058,62 +1058,92 @@ function createDerivationBlock(title, body) {
   return block;
 }
 
-function analogFormulaParts(result) {
+function continuousFormulaParts(result) {
   const gain = result.gainDb === 0 ? "" : "K·";
   if (result.order === 1 && result.type === "highpass") {
     return {
-      numerator: `${gain}jω/ωc`,
-      denominator: "1 + jω/ωc",
-      note: "一阶高通标准型，ωc = 2πfc；离散时在 z=1 放零点压掉 DC，并把 Nyquist 端归一化到通带增益。"
+      left: "H(s) =",
+      numerator: `${gain}τs`,
+      denominator: "τs + 1",
+      note: "一阶高通 s 域原型，τ = 1/ωc。离散时在 z=1 放零点压掉 DC，并把 Nyquist 端归一化到通带增益。"
     };
   }
   if (result.order === 1) {
     return {
+      left: "H(s) =",
       numerator: result.gainDb === 0 ? "1" : "K",
-      denominator: "1 + jω/ωc",
-      note: "一阶低通标准型，ωc = 2πfc，在 ω=ωc 处幅值为通带的 -3 dB。"
+      denominator: "τs + 1",
+      note: "一阶低通 s 域原型，τ = 1/ωc。代入 s=jω 后，ω=ωc 处幅值为通带的 -3 dB。"
     };
   }
-  const commonDenominator = "(jω/ω0)^2 + (jω)/(Qω0) + 1";
+  const commonDenominator = "s^2 + (ω0/Q)s + ω0^2";
   if (result.type === "highpass") {
     return {
-      numerator: "K·(jω/ω0)^2",
+      left: "H(s) =",
+      numerator: `${gain}s^2`,
       denominator: commonDenominator,
       note: "二阶高通标准型，ω0 = 2πfc，Q 控制拐点附近峰值和相位变化。"
     };
   }
   if (result.type === "bandpass") {
     return {
-      numerator: "K·(jω)/(Qω0)",
+      left: "H(s) =",
+      numerator: `${gain}(ω0/Q)s`,
       denominator: commonDenominator,
       note: "二阶带通标准型，ω0 为中心角频率，Q 越高带宽越窄。"
     };
   }
   if (result.type === "notch") {
     return {
-      numerator: "K·[(jω/ω0)^2 + 1]",
+      left: "H(s) =",
+      numerator: `${gain}(s^2 + ω0^2)`,
       denominator: commonDenominator,
       note: "二阶陷波标准型，ω0 附近形成陷波，Q 越高陷波越窄。"
     };
   }
   return {
-    numerator: "K",
+    left: "H(s) =",
+    numerator: `${gain}ω0^2`,
     denominator: commonDenominator,
     note: "二阶低通标准型，ω0 = 2πfc，Q 控制阻尼和截止附近峰值。"
   };
 }
 
-function createAnalogFormulaBlock(result) {
-  const parts = analogFormulaParts(result);
+function zFormulaParts(result) {
+  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+    return {
+      left: "H(z) =",
+      numerator: "a",
+      denominator: "1 - (1-a)z^-1",
+      note: `a = ${formatNumber(result.coeffs.b0, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
+    };
+  }
+  if (result.order === 1) {
+    return {
+      left: "H(z) =",
+      numerator: "b0 + b1z^-1",
+      denominator: "1 - a1z^-1",
+      note: `b0=${formatNumber(result.coeffs.b0, 8)}，b1=${formatNumber(result.coeffs.b1, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
+    };
+  }
+  return {
+    left: "H(z) =",
+    numerator: "b0 + b1z^-1 + b2z^-2",
+    denominator: "1 + a1z^-1 + a2z^-2",
+    note: `b=[${formatNumber(result.coeffs.b0, 8)}, ${formatNumber(result.coeffs.b1, 8)}, ${formatNumber(result.coeffs.b2, 8)}]，a=[1, ${formatNumber(result.coeffs.a1, 8)}, ${formatNumber(result.coeffs.a2, 8)}]。`
+  };
+}
+
+function createFormulaBlock(title, parts) {
   const block = document.createElement("article");
   block.className = "formula-card";
   const heading = document.createElement("h4");
-  heading.textContent = "1. 连续域标准公式";
+  heading.textContent = title;
   const formula = document.createElement("div");
   formula.className = "formula-display";
   const left = document.createElement("span");
   left.className = "formula-left";
-  left.textContent = "H(jω) =";
+  left.textContent = parts.left;
   const fraction = document.createElement("span");
   fraction.className = "formula-fraction";
   const numerator = document.createElement("span");
@@ -1235,19 +1265,21 @@ function renderFilterDerivation(result) {
       ? "2. 指数离散参数"
       : "2. 预畸变和双线性变换";
     container.append(
-      createAnalogFormulaBlock(result),
+      createFormulaBlock("1. 连续域 s 域原型", continuousFormulaParts(result)),
       createDerivationBlock(transformTitle, prewarp),
-      createDerivationBlock("3. z 域形式与归一化系数", zDetail),
-      createDerivationBlock("4. 时域差分方程", timeDomain),
-      createDerivationBlock("5. s 域等价写法", result.design.analog)
+      createFormulaBlock("3. z 域传递函数", zFormulaParts(result)),
+      createDerivationBlock("4. z 域推导与归一化系数", zDetail),
+      createDerivationBlock("5. 时域差分方程", timeDomain),
+      createDerivationBlock("6. s 域等价写法", result.design.analog)
     );
     return;
   }
 
   container.append(
-    createDerivationBlock("1. 已输入 z 域传递函数", normalized),
-    createDerivationBlock("2. 频响分析代入", "令 z = exp(j*2*pi*f/fs)，扫描 f = 0 ... fs/2，得到幅值和相位曲线。"),
-    createDerivationBlock("3. 时域差分方程", timeDomain)
+    createFormulaBlock("1. 已输入 z 域传递函数", zFormulaParts(result)),
+    createDerivationBlock("2. z 域系数", normalized),
+    createDerivationBlock("3. 频响分析代入", "令 z = exp(j*2*pi*f/fs)，扫描 f = 0 ... fs/2，得到幅值和相位曲线。"),
+    createDerivationBlock("4. 时域差分方程", timeDomain)
   );
 }
 

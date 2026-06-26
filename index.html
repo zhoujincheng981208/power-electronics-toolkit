@@ -185,7 +185,7 @@
             <div class="theory-grid">
               <article>
                 <h4>设计模式</h4>
-                <p>一阶低通先按连续域标准型 H(jω)=1/(1+jω/ωc) 理解，再用指数离散得到 y[n]=a*x[n]+(1-a)*y[n-1]，其中 a=1-exp(-2πfc/fs)。也可以切换到 Tustin 双线性变换。</p>
+                <p>一阶低通先按 s 域原型 H(s)=1/(τs+1) 理解，其中 τ=1/ωc；看频响时再代入 s=jω。指数离散后得到 y[n]=a*x[n]+(1-a)*y[n-1]，其中 a=1-exp(-2πfc/fs)。也可以切换到 Tustin 双线性变换。</p>
               </article>
               <article>
                 <h4>分析模式</h4>
