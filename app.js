@@ -676,8 +676,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
     const alpha = Math.exp(-2 * Math.PI * safeFc / sampleRate);
     if (method === "matched") {
       const coeffs = type === "highpass"
-        ? { b0: gain * alpha, b1: -gain * alpha, b2: 0, a1: -alpha, a2: 0 }
-        : { b0: gain * (1 - alpha), b1: 0, b2: 0, a1: -alpha, a2: 0 };
+        ? { b0: gain * alpha, b1: -gain * alpha, b2: 0, a1: alpha, a2: 0 }
+        : { b0: gain * (1 - alpha), b1: 0, b2: 0, a1: alpha, a2: 0 };
       return {
         coeffs,
         alpha,
@@ -688,20 +688,20 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
           type === "highpass"
             ? "H(s) = K*tau*s / (tau*s + 1)"
             : "H(s) = K / (tau*s + 1)",
-        zForm:
-          type === "highpass"
-            ? "H(z) = K*alpha*(1 - z^-1) / (1 - alpha*z^-1)"
-            : "H(z) = K*(1 - alpha) / (1 - alpha*z^-1)"
+      zForm:
+        type === "highpass"
+          ? "H(z) = K*alpha*(1 - z^-1) / (1 - alpha*z^-1)"
+          : "H(z) = K*(1 - alpha) / (1 - alpha*z^-1)"
       };
     }
 
     const tau = 1 / omega;
     const m = 2 * sampleRate * tau;
     const d0 = c + omega;
-    const d1 = omega - c;
+    const feedback = (c - omega) / d0;
     const coeffs = type === "highpass"
-      ? normalizeIir(gain * c, -gain * c, 0, d0, d1, 0)
-      : normalizeIir(gain * omega, gain * omega, 0, d0, d1, 0);
+      ? { b0: gain * c / d0, b1: -gain * c / d0, b2: 0, a1: feedback, a2: 0 }
+      : { b0: gain * omega / d0, b1: gain * omega / d0, b2: 0, a1: feedback, a2: 0 };
     return {
       coeffs,
       omega,
@@ -713,8 +713,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
           : "H(s) = K / (tau*s + 1)",
       zForm:
         type === "highpass"
-          ? "H(z) = K*m*(1 - z^-1) / [(m + 1) + (1 - m)z^-1],  m = 2fs*tau"
-          : "H(z) = K*(1 + z^-1) / [(m + 1) + (1 - m)z^-1],  m = 2fs*tau"
+          ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
+          : "H(z) = [K/(m+1)]*(1 + z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
     };
   }
 
@@ -764,16 +764,21 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
   };
 }
 
-function coefficientResponse(coeffs, frequency, sampleRate) {
+function coefficientResponse(coeffs, frequency, sampleRate, order = 2) {
   const omega = 2 * Math.PI * frequency / sampleRate;
   const z1 = complex(Math.cos(-omega), Math.sin(-omega));
   const z2 = complex(Math.cos(-2 * omega), Math.sin(-2 * omega));
   const numerator = cAdd(cAdd(complex(coeffs.b0), cMul(complex(coeffs.b1), z1)), cMul(complex(coeffs.b2), z2));
-  const denominator = cAdd(cAdd(complex(1), cMul(complex(coeffs.a1), z1)), cMul(complex(coeffs.a2), z2));
+  const denominator = order === 1
+    ? cAdd(complex(1), cMul(complex(-coeffs.a1), z1))
+    : cAdd(cAdd(complex(1), cMul(complex(coeffs.a1), z1)), cMul(complex(coeffs.a2), z2));
   return cDiv(numerator, denominator);
 }
 
-function poleInfo(coeffs) {
+function poleInfo(coeffs, order = 2) {
+  if (order === 1) {
+    return { maxRadius: Math.abs(coeffs.a1), text: formatNumber(coeffs.a1, 4) };
+  }
   const discriminant = coeffs.a1 * coeffs.a1 - 4 * coeffs.a2;
   if (discriminant >= 0) {
     const r1 = (-coeffs.a1 + Math.sqrt(discriminant)) / 2;
@@ -808,7 +813,7 @@ function syncFilterTypeOptions() {
   const equationNote = document.querySelector("#filter-equation-note");
   if (equationNote) {
     equationNote.textContent = order === 1
-      ? "一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]，这里默认 a0 = 1。"
+      ? "一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]，对应 H(z)=(b0+b1z^-1)/(1-a1z^-1)。"
       : "二阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]，这里默认 a0 = 1。";
   }
 }
@@ -847,7 +852,7 @@ function computeFilterValues() {
   for (let i = 0; i < samples; i += 1) {
     const t = i / (samples - 1);
     const freq = t * nyquist;
-    const response = coefficientResponse(coeffs, freq, sampleRate);
+    const response = coefficientResponse(coeffs, freq, sampleRate, order);
     points.push({
       frequency: freq,
       magnitudeDb: 20 * Math.log10(Math.max(cAbs(response), 1e-12)),
@@ -864,8 +869,8 @@ function computeFilterValues() {
   const passbandDb = type === "highpass" ? nyquistGainDb : type === "bandpass" ? peak.magnitudeDb : dcGainDb;
   const direction = type === "highpass" || type === "bandpass" ? "up" : "down";
   const cutoff = interpolateCrossing(points, "magnitudeDb", passbandDb - 3, direction);
-  const probeResponse = coefficientResponse(coeffs, probeFrequency, sampleRate);
-  const poles = poleInfo(coeffs);
+  const probeResponse = coefficientResponse(coeffs, probeFrequency, sampleRate, order);
+  const poles = poleInfo(coeffs, order);
 
   return {
     mode,
@@ -1041,7 +1046,7 @@ function renderFilterDerivation(result) {
   const coeffs = result.coeffs;
   const normalized = result.order === 1
     ? [
-        `H(z) = (b0 + b1*z^-1) / (1 + a1*z^-1)`,
+        `H(z) = (b0 + b1*z^-1) / (1 - a1*z^-1)`,
         `b0 = ${formatNumber(coeffs.b0, 8)}`,
         `b1 = ${formatNumber(coeffs.b1, 8)}`,
         `a1 = ${formatNumber(coeffs.a1, 8)}`
@@ -1057,8 +1062,8 @@ function renderFilterDerivation(result) {
 
   const timeDomain = result.order === 1
     ? [
-        "y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]",
-        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] - (${formatNumber(coeffs.a1, 8)})*y[n-1]`
+        "y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]",
+        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.a1, 8)}*y[n-1]`
       ].join("\n")
     : [
         "y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]",
@@ -1094,8 +1099,8 @@ function renderFilterDerivation(result) {
           result.design.zForm,
           "",
           result.type === "highpass"
-            ? "归一化后：b0 = K*alpha, b1 = -K*alpha, a1 = -alpha"
-            : "归一化后：b0 = K*(1-alpha), b1 = 0, a1 = -alpha",
+            ? "归一化后：b0 = K*alpha, b1 = -K*alpha, a1 = alpha"
+            : "归一化后：b0 = K*(1-alpha), b1 = 0, a1 = alpha",
           "这里是一阶离散 IIR：b2 = 0, a2 = 0，不参与一阶差分方程。",
           "",
           normalized
@@ -1105,8 +1110,8 @@ function renderFilterDerivation(result) {
           result.design.zForm,
           "",
           result.type === "highpass"
-            ? "归一化后：b0 = K*m/(m+1), b1 = -K*m/(m+1), a1 = (1-m)/(m+1)"
-            : "归一化后：b0 = K/(m+1), b1 = K/(m+1), a1 = (1-m)/(m+1)",
+            ? "归一化后：b0 = K*m/(m+1), b1 = -K*m/(m+1), a1 = (m-1)/(m+1)"
+            : "归一化后：b0 = K/(m+1), b1 = K/(m+1), a1 = (m-1)/(m+1)",
           "这里 a0 已归一化为 1，b2 = 0, a2 = 0。",
           "",
           normalized

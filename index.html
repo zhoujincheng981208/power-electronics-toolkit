@@ -166,7 +166,7 @@
             <label>增益 K (dB)<input id="filter-gain-db" type="number" value="0" step="0.5"></label>
           </div>
           <div class="coefficient-panel">
-            <p id="filter-equation-note" class="panel-note">一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]，这里默认 a0 = 1。</p>
+            <p id="filter-equation-note" class="panel-note">一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]，对应 H(z)=(b0+b1z^-1)/(1-a1z^-1)。</p>
             <div class="form-grid three-up">
               <label>b0<input id="filter-b0" type="number" value="0.067455" step="0.000001"></label>
               <label>b1<input id="filter-b1" type="number" value="0.134911" step="0.000001"></label>
