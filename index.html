@@ -133,13 +133,17 @@
         <article id="filter-designer" class="calculator-card wide filter-designer">
           <div class="calculator-head">
             <h3>软件滤波器设计插件</h3>
-            <span>一阶 / 二阶传递函数与伯德图分析</span>
+            <span>按指标设计 IIR，或按系数分析性能</span>
+          </div>
+          <div class="mode-switch">
+            <label><input id="filter-mode-design" name="filter-mode" type="radio" value="design" checked> 按采样频率和截止频率设计</label>
+            <label><input id="filter-mode-analyze" name="filter-mode" type="radio" value="analyze"> 按采样频率和系数分析</label>
           </div>
           <div class="form-grid three-up">
-            <label>滤波器阶数
+            <label>滤波器阶数 / 结构
               <select id="filter-order">
-                <option value="1">一阶</option>
-                <option value="2">二阶</option>
+                <option value="1">一阶 IIR</option>
+                <option value="2">二阶 Biquad</option>
               </select>
             </label>
             <label>滤波器类型
@@ -150,10 +154,21 @@
                 <option value="notch">陷波（二阶）</option>
               </select>
             </label>
+            <label>采样频率 fs (Hz)<input id="filter-sample-rate" type="number" value="10000" step="1"></label>
+            <label>截止 / 中心频率 fc (Hz)<input id="filter-frequency" type="number" value="1000" step="1"></label>
+            <label>品质因数 Q（二阶）<input id="filter-q" type="number" value="0.707" step="0.01"></label>
             <label>增益 K (dB)<input id="filter-gain-db" type="number" value="0" step="0.5"></label>
-            <label>截止 / 固有频率 (Hz)<input id="filter-frequency" type="number" value="1000" step="1"></label>
-            <label>阻尼系数 ζ（二阶）<input id="filter-zeta" type="number" value="0.707" step="0.01"></label>
-            <label>频率范围倍数<input id="filter-span" type="number" value="100" step="10"></label>
+          </div>
+          <div class="coefficient-panel">
+            <p class="panel-note">差分方程：y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]，这里默认 a0 = 1。</p>
+            <div class="form-grid three-up">
+              <label>b0<input id="filter-b0" type="number" value="0.067455" step="0.000001"></label>
+              <label>b1<input id="filter-b1" type="number" value="0.134911" step="0.000001"></label>
+              <label>b2<input id="filter-b2" type="number" value="0.067455" step="0.000001"></label>
+              <label>a1<input id="filter-a1" type="number" value="-1.14298" step="0.000001"></label>
+              <label>a2<input id="filter-a2" type="number" value="0.412802" step="0.000001"></label>
+              <label>分析点频率 (Hz)<input id="filter-probe-frequency" type="number" value="1000" step="1"></label>
+            </div>
           </div>
           <div id="filter-results" class="result-grid"></div>
           <canvas id="filter-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
@@ -162,20 +177,20 @@
             <summary>这个插件怎么算</summary>
             <div class="theory-grid">
               <article>
-                <h4>一阶低通 / 高通</h4>
-                <p>低通：H(s)=K*wc/(s+wc)。高通：H(s)=K*s/(s+wc)。在 wc 附近幅值约下降 3 dB，相位分别靠近 -45° / +45°。</p>
+                <h4>设计模式</h4>
+                <p>输入采样频率 fs、目标频率 fc、阶数和类型。二阶使用标准 biquad 公式生成 b0、b1、b2、a1、a2；一阶使用指数平滑/互补高通形式。</p>
               </article>
               <article>
-                <h4>二阶标准型</h4>
-                <p>分母统一使用 s^2 + 2ζwns + wn^2。ζ 越小越容易出现尖峰和振铃，ζ≈0.707 接近 Butterworth 响应。</p>
+                <h4>分析模式</h4>
+                <p>输入采样频率和差分方程系数，工具会计算 0 到 Nyquist 频率内的幅频、相频、-3 dB 截止点、峰值、探针频率幅相和稳定性。</p>
               </article>
               <article>
-                <h4>幅值裕度 / 相位裕度</h4>
-                <p>相位裕度看 0 dB 穿越频率处距离 -180° 还有多少；幅值裕度看相位穿越 -180° 时距离 0 dB 还有多少。它们常用于闭环稳定性直觉判断。</p>
+                <h4>为什么不是裕度优先</h4>
+                <p>单独的数字滤波器通常更关心截止频率、通带增益、阻带衰减、相位延迟和极点稳定性。幅值裕度/相位裕度更适合完整开环控制系统。</p>
               </article>
               <article>
                 <h4>使用边界</h4>
-                <p>这里按连续域传递函数做分析，适合概念设计和控制直觉。真正落到 DSP/MCU 时，还要考虑采样频率、离散化方法、量化误差和执行延时。</p>
+                <p>fc 必须小于 fs/2。真实 MCU/DSP 里还要考虑定点量化、溢出、执行周期、ADC 噪声和实际采样抖动。</p>
               </article>
             </div>
           </details>
