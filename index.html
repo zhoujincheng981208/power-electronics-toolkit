@@ -146,6 +146,12 @@
                 <option value="2">二阶 Biquad</option>
               </select>
             </label>
+            <label>离散化方法
+              <select id="filter-method">
+                <option value="matched">一阶指数 / ZOH</option>
+                <option value="tustin">Tustin 双线性变换</option>
+              </select>
+            </label>
             <label>滤波器类型
               <select id="filter-type">
                 <option value="lowpass">低通</option>
@@ -160,13 +166,13 @@
             <label>增益 K (dB)<input id="filter-gain-db" type="number" value="0" step="0.5"></label>
           </div>
           <div class="coefficient-panel">
-            <p class="panel-note">差分方程：y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]，这里默认 a0 = 1。</p>
+            <p id="filter-equation-note" class="panel-note">一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]，这里默认 a0 = 1。</p>
             <div class="form-grid three-up">
               <label>b0<input id="filter-b0" type="number" value="0.067455" step="0.000001"></label>
               <label>b1<input id="filter-b1" type="number" value="0.134911" step="0.000001"></label>
-              <label>b2<input id="filter-b2" type="number" value="0.067455" step="0.000001"></label>
+              <label class="second-order-coeff">b2<input id="filter-b2" type="number" value="0.067455" step="0.000001"></label>
               <label>a1<input id="filter-a1" type="number" value="-1.14298" step="0.000001"></label>
-              <label>a2<input id="filter-a2" type="number" value="0.412802" step="0.000001"></label>
+              <label class="second-order-coeff">a2<input id="filter-a2" type="number" value="0.412802" step="0.000001"></label>
               <label>分析点频率 (Hz)<input id="filter-probe-frequency" type="number" value="1000" step="1"></label>
             </div>
           </div>
@@ -179,7 +185,7 @@
             <div class="theory-grid">
               <article>
                 <h4>设计模式</h4>
-                <p>一阶低通使用 H(s)=K/(τs+1)，一阶高通使用 H(s)=Kτs/(τs+1)。τ 由预畸变后的 wc 得到，再用 Tustin 变换生成 z 域系数。</p>
+                <p>一阶默认使用指数/ZOH 离散：低通 H(z)=(1-α)/(1-αz^-1)，α=exp(-2πfc/fs)。也可以切换到 Tustin 双线性变换。</p>
               </article>
               <article>
                 <h4>分析模式</h4>

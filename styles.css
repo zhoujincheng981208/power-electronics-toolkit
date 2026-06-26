@@ -233,6 +233,7 @@ a { color: inherit; text-decoration: none; }
 .card-actions { justify-content: space-between; flex-wrap: wrap; }
 .primary-link { display: inline-flex; align-items: center; }
 .delete-btn.hidden { display: none; }
+.hidden { display: none !important; }
 .reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
 .reference-grid article {
   padding: 18px;

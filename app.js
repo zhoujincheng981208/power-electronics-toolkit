@@ -83,6 +83,7 @@ const elements = {
         modeDesign: document.querySelector("#filter-mode-design"),
         modeAnalyze: document.querySelector("#filter-mode-analyze"),
         order: document.querySelector("#filter-order"),
+        method: document.querySelector("#filter-method"),
         type: document.querySelector("#filter-type"),
         sampleRate: document.querySelector("#filter-sample-rate"),
         frequency: document.querySelector("#filter-frequency"),
@@ -664,7 +665,7 @@ function normalizeIir(n0, n1, n2, d0, d1, d2) {
   };
 }
 
-function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb }) {
+function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, method }) {
   const safeFc = Math.min(Math.max(frequency, 0.001), sampleRate * 0.499);
   const gain = 10 ** (gainDb / 20);
   const c = 2 * sampleRate;
@@ -672,6 +673,28 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb }) 
   const safeQ = Math.max(q, 0.001);
 
   if (order === 1) {
+    const alpha = Math.exp(-2 * Math.PI * safeFc / sampleRate);
+    if (method === "matched") {
+      const coeffs = type === "highpass"
+        ? { b0: gain * alpha, b1: -gain * alpha, b2: 0, a1: -alpha, a2: 0 }
+        : { b0: gain * (1 - alpha), b1: 0, b2: 0, a1: -alpha, a2: 0 };
+      return {
+        coeffs,
+        alpha,
+        omega: 2 * Math.PI * safeFc,
+        tau: 1 / (2 * Math.PI * safeFc),
+        method,
+        analog:
+          type === "highpass"
+            ? "H(s) = K*tau*s / (tau*s + 1)"
+            : "H(s) = K / (tau*s + 1)",
+        zForm:
+          type === "highpass"
+            ? "H(z) = K*alpha*(1 - z^-1) / (1 - alpha*z^-1)"
+            : "H(z) = K*(1 - alpha) / (1 - alpha*z^-1)"
+      };
+    }
+
     const tau = 1 / omega;
     const m = 2 * sampleRate * tau;
     const d0 = c + omega;
@@ -778,6 +801,16 @@ function syncFilterTypeOptions() {
   if (order === 1 && (inputs.type.value === "bandpass" || inputs.type.value === "notch")) {
     inputs.type.value = "lowpass";
   }
+  inputs.method.disabled = order === 2;
+  document.querySelectorAll(".second-order-coeff").forEach((node) => {
+    node.classList.toggle("hidden", order === 1);
+  });
+  const equationNote = document.querySelector("#filter-equation-note");
+  if (equationNote) {
+    equationNote.textContent = order === 1
+      ? "一阶差分方程：y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]，这里默认 a0 = 1。"
+      : "二阶差分方程：y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]，这里默认 a0 = 1。";
+  }
 }
 
 function computeFilterValues() {
@@ -787,6 +820,7 @@ function computeFilterValues() {
   const sampleRate = toNumber(inputs.sampleRate);
   const nyquist = sampleRate / 2;
   const order = Number(inputs.order.value);
+  const method = inputs.method.value;
   let type = inputs.type.value;
   if (order === 1 && (type === "bandpass" || type === "notch")) type = "lowpass";
   const frequency = toNumber(inputs.frequency);
@@ -794,7 +828,7 @@ function computeFilterValues() {
   const gainDb = toNumber(inputs.gainDb);
   const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
   const design = mode === "design"
-    ? designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb })
+    ? designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, method })
     : null;
   const coeffs = design
     ? design.coeffs
@@ -1005,24 +1039,43 @@ function renderFilterDerivation(result) {
   container.innerHTML = "";
 
   const coeffs = result.coeffs;
-  const normalized = [
-    `H(z) = (b0 + b1*z^-1 + b2*z^-2) / (1 + a1*z^-1 + a2*z^-2)`,
-    `b0 = ${formatNumber(coeffs.b0, 8)}`,
-    `b1 = ${formatNumber(coeffs.b1, 8)}`,
-    `b2 = ${formatNumber(coeffs.b2, 8)}`,
-    `a1 = ${formatNumber(coeffs.a1, 8)}`,
-    `a2 = ${formatNumber(coeffs.a2, 8)}`
-  ].join("\n");
+  const normalized = result.order === 1
+    ? [
+        `H(z) = (b0 + b1*z^-1) / (1 + a1*z^-1)`,
+        `b0 = ${formatNumber(coeffs.b0, 8)}`,
+        `b1 = ${formatNumber(coeffs.b1, 8)}`,
+        `a1 = ${formatNumber(coeffs.a1, 8)}`
+      ].join("\n")
+    : [
+        `H(z) = (b0 + b1*z^-1 + b2*z^-2) / (1 + a1*z^-1 + a2*z^-2)`,
+        `b0 = ${formatNumber(coeffs.b0, 8)}`,
+        `b1 = ${formatNumber(coeffs.b1, 8)}`,
+        `b2 = ${formatNumber(coeffs.b2, 8)}`,
+        `a1 = ${formatNumber(coeffs.a1, 8)}`,
+        `a2 = ${formatNumber(coeffs.a2, 8)}`
+      ].join("\n");
 
-  const timeDomain = [
-    "y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]",
-    `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.b2, 8)}*x[n-2]`,
-    `       - (${formatNumber(coeffs.a1, 8)})*y[n-1] - (${formatNumber(coeffs.a2, 8)})*y[n-2]`
-  ].join("\n");
+  const timeDomain = result.order === 1
+    ? [
+        "y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]",
+        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] - (${formatNumber(coeffs.a1, 8)})*y[n-1]`
+      ].join("\n")
+    : [
+        "y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]",
+        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.b2, 8)}*x[n-2]`,
+        `       - (${formatNumber(coeffs.a1, 8)})*y[n-1] - (${formatNumber(coeffs.a2, 8)})*y[n-2]`
+      ].join("\n");
 
   if (result.mode === "design" && result.design) {
     const fs2 = 2 * result.sampleRate;
-    const prewarp = result.order === 1
+    const prewarp = result.order === 1 && result.design.method === "matched"
+      ? [
+          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
+          `tau = 1/(2*pi*fc) = ${formatNumber(result.design.tau, 10)} s`,
+          `Ts = 1/fs = ${formatNumber(1 / result.sampleRate, 10)} s`,
+          `alpha = exp(-Ts/tau) = exp(-2*pi*fc/fs) = ${formatNumber(result.design.alpha, 8)}`
+        ].join("\n")
+      : result.order === 1
       ? [
           `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
           `数字域目标角频率：wd = 2*pi*fc/fs`,
@@ -1036,7 +1089,18 @@ function renderFilterDerivation(result) {
           `w0 = 2*fs*tan(pi*fc/fs) = ${formatNumber(result.design.omega, 6)} rad/s`,
           `s = 2*fs*(1 - z^-1)/(1 + z^-1) = ${formatNumber(fs2, 4)}*(1 - z^-1)/(1 + z^-1)`
         ].join("\n");
-    const zDetail = result.order === 1
+    const zDetail = result.order === 1 && result.design.method === "matched"
+      ? [
+          result.design.zForm,
+          "",
+          result.type === "highpass"
+            ? "归一化后：b0 = K*alpha, b1 = -K*alpha, a1 = -alpha"
+            : "归一化后：b0 = K*(1-alpha), b1 = 0, a1 = -alpha",
+          "这里是一阶离散 IIR：b2 = 0, a2 = 0，不参与一阶差分方程。",
+          "",
+          normalized
+        ].join("\n")
+      : result.order === 1
       ? [
           result.design.zForm,
           "",
