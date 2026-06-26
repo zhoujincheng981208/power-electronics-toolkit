@@ -338,6 +338,52 @@ a { color: inherit; text-decoration: none; }
   font: 0.92rem/1.55 "Space Grotesk", "Noto Sans SC", sans-serif;
 }
 
+.formula-card {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(15, 118, 110, .12), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.9), rgba(248,252,250,.78)) !important;
+}
+
+.formula-display {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 88px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(15,118,110,.16);
+  font-family: "Times New Roman", "Noto Sans SC", serif;
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  font-style: italic;
+}
+
+.formula-left {
+  white-space: nowrap;
+}
+
+.formula-fraction {
+  display: inline-grid;
+  gap: 7px;
+  text-align: center;
+  line-height: 1.12;
+}
+
+.formula-fraction span:first-child {
+  padding: 0 18px 7px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.formula-fraction span:last-child {
+  padding: 0 18px;
+}
+
+.formula-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
 .compact-results {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
