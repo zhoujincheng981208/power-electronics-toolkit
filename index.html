@@ -1,0 +1,255 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Power Electronics Toolkit</title>
+  <meta name="description" content="电力电子个人插件集合网页，支持工具分类、搜索、收藏、备注、导入导出，以及 Buck/Boost/LCL 常用计算器。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Power Electronics Workspace</p>
+        <h1>电力电子插件集合网页</h1>
+        <p class="hero-text">
+          把你常用的设计工具、资料入口、在线计算器和仿真辅助资源收进一个界面里。
+          这个版本支持搜索、分类筛选、收藏、个人备注、导入导出，以及常用拓扑的快速估算。
+        </p>
+        <div class="hero-actions">
+          <button id="open-add-tool" class="primary-btn" type="button">新增工具</button>
+          <button id="export-tools" class="ghost-btn" type="button">导出我的清单</button>
+          <label class="ghost-btn file-label" for="import-tools">导入清单</label>
+          <input id="import-tools" type="file" accept="application/json" hidden>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="metric-card"><span>工具总数</span><strong id="metric-total">0</strong></div>
+        <div class="metric-card"><span>已收藏</span><strong id="metric-favorites">0</strong></div>
+        <div class="metric-card"><span>自建工具</span><strong id="metric-custom">0</strong></div>
+      </div>
+    </header>
+
+    <section class="panel calculator-hub">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Quick Calculators</p>
+          <h2>常用设计计算器</h2>
+        </div>
+        <p class="results-summary">先给工程估算值，适合作为初设和对数检查。</p>
+      </div>
+
+      <div class="calculator-grid">
+        <article class="calculator-card">
+          <div class="calculator-head"><h3>Buck 估算</h3><span>连续导通近似</span></div>
+          <div class="form-grid">
+            <label>输入电压 Vin (V)<input id="buck-vin" type="number" value="48" step="0.1"></label>
+            <label>输出电压 Vout (V)<input id="buck-vout" type="number" value="12" step="0.1"></label>
+            <label>输出电流 Iout (A)<input id="buck-iout" type="number" value="8" step="0.1"></label>
+            <label>开关频率 fsw (kHz)<input id="buck-fsw" type="number" value="100" step="1"></label>
+            <label>电感纹波比例 (%)<input id="buck-ripple-current" type="number" value="30" step="1"></label>
+            <label>输出纹波 (mV)<input id="buck-ripple-voltage" type="number" value="50" step="1"></label>
+          </div>
+          <div id="buck-results" class="result-grid"></div>
+        </article>
+
+        <article class="calculator-card">
+          <div class="calculator-head"><h3>Boost 估算</h3><span>连续导通近似</span></div>
+          <div class="form-grid">
+            <label>输入电压 Vin (V)<input id="boost-vin" type="number" value="24" step="0.1"></label>
+            <label>输出电压 Vout (V)<input id="boost-vout" type="number" value="48" step="0.1"></label>
+            <label>输出电流 Iout (A)<input id="boost-iout" type="number" value="4" step="0.1"></label>
+            <label>开关频率 fsw (kHz)<input id="boost-fsw" type="number" value="80" step="1"></label>
+            <label>效率估计 (%)<input id="boost-efficiency" type="number" value="94" step="1"></label>
+            <label>电感纹波比例 (%)<input id="boost-ripple-current" type="number" value="25" step="1"></label>
+          </div>
+          <div id="boost-results" class="result-grid"></div>
+        </article>
+        <article class="calculator-card wide lcl-designer">
+          <div class="calculator-head">
+            <h3>LCL 滤波器设计器</h3>
+            <span>三相并网逆变器工程初设</span>
+          </div>
+          <div class="form-grid three-up">
+            <label>直流母线 Vdc (V)<input class="lcl-enhanced-input" id="lcl-vdc" type="number" value="800" step="1"></label>
+            <label>线电压 Vac,ll (V RMS)<input class="lcl-enhanced-input" id="lcl-vll" type="number" value="380" step="1"></label>
+            <label>输出功率 Pout (kW)<input class="lcl-enhanced-input" id="lcl-power" type="number" value="10" step="0.1"></label>
+            <label>开关频率 fsw (kHz)<input class="lcl-enhanced-input" id="lcl-fsw" type="number" value="20" step="1"></label>
+            <label>并网频率 fg (Hz)<input class="lcl-enhanced-input" id="lcl-grid-frequency" type="number" value="50" step="1"></label>
+            <label>功率因数 pf<input class="lcl-enhanced-input" id="lcl-pf" type="number" value="0.99" step="0.01" min="0.1" max="1"></label>
+            <label>电流纹波比例 (%)<input class="lcl-enhanced-input" id="lcl-ripple-current" type="number" value="20" step="1"></label>
+            <label>电容占基值比例 (%)<input class="lcl-enhanced-input" id="lcl-cap-ratio" type="number" value="5" step="0.5"></label>
+            <label>电网侧电感比 Lg/Li<input class="lcl-enhanced-input" id="lcl-grid-ratio" type="number" value="0.3" step="0.05"></label>
+            <label>阻尼电阻系数<input class="lcl-enhanced-input" id="lcl-damping-factor" type="number" value="1" step="0.1"></label>
+            <label>谐振下限倍数 fg<input class="lcl-enhanced-input" id="lcl-min-resonance-multiple" type="number" value="10" step="1"></label>
+            <label>谐振上限占 fsw<input class="lcl-enhanced-input" id="lcl-max-resonance-ratio" type="number" value="0.5" step="0.05"></label>
+          </div>
+          <div class="lcl-toolbar">
+            <button id="lcl-copy-report" class="ghost-btn" type="button">复制报告</button>
+            <button id="lcl-reset" class="ghost-btn" type="button">恢复默认</button>
+          </div>
+          <div id="lcl-results" class="result-grid"></div>
+          <div id="lcl-secondary-results" class="result-grid compact-results"></div>
+          <div id="lcl-checks" class="check-list"></div>
+          <canvas id="lcl-chart" class="lcl-chart" width="960" height="260"></canvas>
+          <details class="theory-box" open>
+            <summary>计算原理和调参方向</summary>
+            <div class="theory-grid">
+              <article>
+                <h4>1. 额定电流与基值</h4>
+                <p>三相相电流：I = P / (sqrt(3) * Vll * pf)。相电压：Vph = Vll / sqrt(3)。基准阻抗：Zbase = Vph^2 / (P / 3)。</p>
+              </article>
+              <article>
+                <h4>2. 逆变侧电感 Li</h4>
+                <p>先设允许电流纹波 ΔI = I * 纹波比例，再用 Li ≈ Vdc / (6 * fsw * ΔI) 估算。纹波比例越小，Li 越大，动态响应会变慢。</p>
+              </article>
+              <article>
+                <h4>3. 电容 Cf 与电网侧 Lg</h4>
+                <p>Cbase = 1 / (2π * fg * Zbase)，Cf = Cbase * 电容比例。Lg = Li * Lg/Li。Cf 太大会带来基波无功，Lg 太大会增加压降。</p>
+              </article>
+              <article>
+                <h4>4. 谐振与阻尼</h4>
+                <p>fres = 1/(2π) * sqrt((Li + Lg)/(Li * Lg * Cf))。通常希望 fres 高于 10 倍电网频率，并低于约 0.5fsw。Rd 为串联阻尼初值。</p>
+              </article>
+            </div>
+          </details>
+          <p class="panel-note">这些结果用于初步设计和 sanity check，最终还要结合控制延时、采样频率、阻尼方式、并网标准和仿真结果确认。</p>
+        </article>
+
+        <article class="calculator-card wide filter-designer">
+          <div class="calculator-head">
+            <h3>通用滤波器设计插件</h3>
+            <span>RC / LC / RLC 初值计算</span>
+          </div>
+          <div class="form-grid three-up">
+            <label>滤波器类型
+              <select id="filter-type">
+                <option value="rc-lowpass">RC 一阶低通</option>
+                <option value="rc-highpass">RC 一阶高通</option>
+                <option value="lc-lowpass">LC 二阶低通</option>
+                <option value="rlc-notch">串联 RLC 陷波</option>
+              </select>
+            </label>
+            <label>目标频率 fc / f0 (Hz)<input id="filter-frequency" type="number" value="1000" step="1"></label>
+            <label>已知电容 C (uF)<input id="filter-capacitance" type="number" value="1" step="0.01"></label>
+            <label>已知电阻 R (ohm)<input id="filter-resistance" type="number" value="10" step="0.1"></label>
+            <label>阻尼系数 ζ<input id="filter-zeta" type="number" value="0.707" step="0.01"></label>
+            <label>陷波品质因数 Q<input id="filter-q" type="number" value="10" step="0.1"></label>
+          </div>
+          <div id="filter-results" class="result-grid"></div>
+          <div id="filter-checks" class="check-list"></div>
+          <details class="theory-box">
+            <summary>这个插件怎么算</summary>
+            <div class="theory-grid">
+              <article>
+                <h4>RC 低通 / 高通</h4>
+                <p>截止频率 fc = 1 / (2πRC)。给定 fc 和 C 时，反算 R = 1 / (2πfcC)；同时用你输入的 R/C 回算实际 fc，方便选标准阻值。</p>
+              </article>
+              <article>
+                <h4>LC 二阶低通</h4>
+                <p>谐振频率 f0 = 1 / (2πsqrt(LC))。给定 f0 和 C 时，反算 L = 1 / ((2πf0)^2 * C)。阻尼电阻近似 Rcrit = 2ζsqrt(L/C)。</p>
+              </article>
+              <article>
+                <h4>串联 RLC 陷波</h4>
+                <p>中心频率 f0 = 1 / (2πsqrt(LC))，品质因数 Q = ω0L / R。给定 Q 后，R = ω0L / Q，带宽 BW ≈ f0 / Q。</p>
+              </article>
+              <article>
+                <h4>使用边界</h4>
+                <p>这里给的是初值，不包含寄生参数、ESR、ESL、运放带宽、磁芯饱和和热设计。高频或大功率场景一定要仿真和实测。</p>
+              </article>
+            </div>
+          </details>
+        </article>
+      </div>
+    </section>
+
+    <main class="layout-grid">
+      <aside class="sidebar">
+        <section class="panel">
+          <h2>快速筛选</h2>
+          <div class="search-box"><input id="search-input" type="search" placeholder="搜索工具名、标签、用途"></div>
+          <div id="category-filters" class="filter-group"></div>
+          <div class="toggle-line"><label><input id="favorites-only" type="checkbox">只看已收藏</label></div>
+        </section>
+
+        <section class="panel">
+          <h2>推荐模块</h2>
+          <ul class="mini-list">
+            <li>LCL / LC 滤波器设计</li>
+            <li>Buck / Boost / LLC 参数估算</li>
+            <li>磁性元件与损耗计算</li>
+            <li>器件选型与应力校核</li>
+            <li>仿真、论文、数据手册入口</li>
+          </ul>
+        </section>
+
+        <section class="panel sticky-panel">
+          <h2>个人工作台</h2>
+          <p class="panel-note">这里会显示你收藏的工具和快速备注。数据默认保存在当前浏览器。</p>
+          <div id="favorites-board" class="favorites-board"></div>
+          <textarea id="global-notes" rows="8" placeholder="写点你的个人备忘，比如：常用开关频率、项目清单、待补充工具... "></textarea>
+        </section>
+      </aside>
+
+      <section class="content-area">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Tool Shelf</p>
+            <h2>工具库</h2>
+          </div>
+          <p id="results-summary" class="results-summary"></p>
+        </div>
+
+        <div id="tool-grid" class="tool-grid"></div>
+
+        <section class="panel formula-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Quick Reference</p>
+              <h2>工作流建议</h2>
+            </div>
+          </div>
+          <div class="reference-grid">
+            <article><h3>设计顺序</h3><p>先用这个页面做初值估算，再进仿真软件细调，最后回到工具库补资料和数据手册。</p></article>
+            <article><h3>后续扩展</h3><p>如果以后要做账号、云端同步、项目存档，可以在现在这个纯前端版本上再接 Supabase。</p></article>
+            <article><h3>最省事部署</h3><p>当前版本天然适合部署到 Cloudflare Pages。只要上传这三个文件就能公开访问。</p></article>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="tool-dialog" class="tool-dialog">
+    <form id="tool-form" class="tool-form" method="dialog">
+      <div class="dialog-header">
+        <div><p class="eyebrow">Custom Tool</p><h2>新增个人工具</h2></div>
+        <button id="close-dialog" class="icon-btn" type="button" aria-label="关闭">×</button>
+      </div>
+      <label>工具名称<input name="title" type="text" required placeholder="例如：LCL滤波器设计"></label>
+      <label>链接地址<input name="url" type="url" required placeholder="https://"></label>
+      <label>分类<select name="category" required><option value="滤波器">滤波器</option><option value="拓扑设计">拓扑设计</option><option value="磁性器件">磁性器件</option><option value="器件选型">器件选型</option><option value="仿真资料">仿真资料</option><option value="论文手册">论文手册</option><option value="通用工具">通用工具</option></select></label>
+      <label>标签<input name="tags" type="text" placeholder="用逗号分隔，例如：LCL, 并网, 谐振"></label>
+      <label>简介<textarea name="description" rows="4" placeholder="写一下这个工具是干什么的"></textarea></label>
+      <div class="dialog-actions"><button class="ghost-btn" type="button" id="cancel-dialog">取消</button><button class="primary-btn" type="submit">保存工具</button></div>
+    </form>
+  </dialog>
+
+  <template id="tool-card-template">
+    <article class="tool-card">
+      <div class="card-top"><span class="card-category"></span><button class="favorite-btn" type="button" aria-label="收藏工具">☆</button></div>
+      <h3 class="card-title"></h3>
+      <p class="card-description"></p>
+      <div class="tag-row"></div>
+      <textarea class="card-note" rows="3" placeholder="写点你的使用备注"></textarea>
+      <div class="card-actions"><a class="primary-link" target="_blank" rel="noreferrer">打开工具</a><button class="delete-btn" type="button">删除</button></div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
+
