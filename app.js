@@ -1047,16 +1047,16 @@ function computeAnalyzedFilterValues() {
 function updateAnalyzeEquationNote(result) {
   const note = document.querySelector("#filter-analyze-equation-note");
   if (!note) return;
+  if (isTustinOnePoleLowpass(result)) {
+    note.textContent = "一阶低通：已识别为 Tustin 形式 H(z)=b0*(1+z^-1)/(1+a1*z^-1)，其中 a1 为负数；差分方程为 y[n]=b0*x[n]+b0*x[n-1]-a1*y[n-1]。";
+    return;
+  }
   if (isOnePoleLowpass(result)) {
     note.textContent = "一阶低通：已识别为 H(z)=a/(1-(1-a)z^-1)，对应 y[n]=a*x[n]+(1-a)*y[n-1]，稳定条件是 |1-a|<1。";
     return;
   }
-  if (isTustinOnePoleLowpass(result)) {
-    note.textContent = "一阶低通：已识别为 Tustin 形式 H(z)=b0*(1+z^-1)/(1-a1*z^-1)，对应 y[n]=b0*x[n]+b0*x[n-1]+a1*y[n-1]。";
-    return;
-  }
   if (isOnePoleHighpass(result)) {
-    note.textContent = "一阶高通：已识别为 H(z)=b0*(1-z^-1)/(1-a1*z^-1)，分子在 z=1 有零点，稳定条件是 |a1|<1。";
+    note.textContent = "一阶高通：已识别为 H(z)=b0*(1-z^-1)/(1+a1*z^-1)，其中 a1 为负数；分子在 z=1 有零点，稳定条件是极点半径小于 1。";
     return;
   }
   const secondOrder = secondOrderZStructure(result);
@@ -1076,6 +1076,13 @@ function updateAnalyzeCoefficientLabels(result) {
   const b1Label = document.querySelector("#filter-analyze-b1-label");
   const a1Label = document.querySelector("#filter-analyze-a1-label");
   const b1Wrap = document.querySelector("#filter-analyze-b1-wrap");
+  if (isTustinOnePoleLowpass(result)) {
+    if (b0Label) b0Label.textContent = "b0";
+    if (b1Label) b1Label.textContent = "b1 = b0";
+    if (a1Label) a1Label.textContent = "内部反馈 p = -a1";
+    if (b1Wrap) b1Wrap.classList.remove("hidden");
+    return;
+  }
   if (isOnePoleLowpass(result)) {
     if (b0Label) b0Label.textContent = "a";
     if (a1Label) a1Label.textContent = "1-a";
@@ -1237,8 +1244,14 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
 function filterStatusItems(result) {
   const items = [];
   const onePoleLowpass = result.order === 1 && result.design?.method === "matched" && result.type === "lowpass";
+  const tustinOnePoleLowpass = isTustinOnePoleLowpass(result);
+  const onePoleHighpass = isOnePoleHighpass(result);
   const coefficientText = onePoleLowpass
     ? `a=${formatNumber(result.coeffs.b0, 6)}, 1-a=${formatNumber(result.coeffs.a1, 6)}`
+    : tustinOnePoleLowpass
+    ? `b0=b1=${formatNumber(result.coeffs.b0, 6)}, a1=${formatNumber(tustinDenominatorA1(result), 6)}, 内部反馈p=${formatNumber(result.coeffs.a1, 6)}`
+    : onePoleHighpass
+    ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=-b0, a1=${formatNumber(tustinDenominatorA1(result), 6)}, 内部反馈p=${formatNumber(result.coeffs.a1, 6)}`
     : result.order === 1
     ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=${formatNumber(result.coeffs.b1, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
     : `b=[${formatNumber(result.coeffs.b0, 6)}, ${formatNumber(result.coeffs.b1, 6)}, ${formatNumber(result.coeffs.b2, 6)}], a=[1, ${formatNumber(result.coeffs.a1, 6)}, ${formatNumber(result.coeffs.a2, 6)}]`;
@@ -1348,6 +1361,10 @@ function isTustinOnePoleLowpass(result) {
     && Math.abs(coeffs.a1) < 1;
 }
 
+function tustinDenominatorA1(result) {
+  return -result.coeffs.a1;
+}
+
 function isOnePoleHighpass(result) {
   const coeffs = result.coeffs;
   return result.order === 1
@@ -1389,6 +1406,15 @@ function secondOrderZStructure(result) {
 }
 
 function zFormulaParts(result) {
+  if (isTustinOnePoleLowpass(result)) {
+    const a1 = tustinDenominatorA1(result);
+    return {
+      left: "H(z) =",
+      numerator: "b0(1 + z^-1)",
+      denominator: "1 + a1z^-1",
+      note: `识别为 Tustin 一阶低通：b0=b1=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(a1, 8)}。`
+    };
+  }
   if (isOnePoleLowpass(result)) {
     const a = result.coeffs.b0;
     return {
@@ -1398,20 +1424,13 @@ function zFormulaParts(result) {
       note: `识别为一阶低通：a = ${formatNumber(a, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
     };
   }
-  if (isTustinOnePoleLowpass(result)) {
-    return {
-      left: "H(z) =",
-      numerator: "b0(1 + z^-1)",
-      denominator: "1 - a1z^-1",
-      note: `识别为 Tustin 一阶低通：b0=b1=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
-    };
-  }
   if (isOnePoleHighpass(result)) {
+    const a1 = tustinDenominatorA1(result);
     return {
       left: "H(z) =",
       numerator: "b0(1 - z^-1)",
-      denominator: "1 - a1z^-1",
-      note: `识别为一阶高通：b0=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
+      denominator: "1 + a1z^-1",
+      note: `识别为一阶高通：b0=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(a1, 8)}。`
     };
   }
   if (result.order === 1) {
@@ -1536,6 +1555,16 @@ function transformParameterRows(result, coeffs) {
 }
 
 function zDerivationRows(result, coeffs) {
+  if (isTustinOnePoleLowpass(result)) {
+    const a1 = tustinDenominatorA1(result);
+    return [
+      { kind: "note", text: "识别为 Tustin 一阶低通结构：分子为 (1+z^-1)，分母按标准 IIR 写成 1+a1z^-1，此时 a1 为负数。" },
+      { left: "H(z)", right: "b0(1+z^-1)/(1+a1z^-1)" },
+      { left: "b0=b1", right: formatNumber(coeffs.b0, 8) },
+      { left: "a1", right: formatNumber(a1, 8) },
+      { left: "内部反馈 p", right: `-a1 = ${formatNumber(coeffs.a1, 8)}` }
+    ];
+  }
   if (isOnePoleLowpass(result)) {
     return [
       { kind: "note", text: "识别为一阶低通结构，按参考原型的一阶低通递推式查看。" },
@@ -1547,21 +1576,15 @@ function zDerivationRows(result, coeffs) {
       { left: "1-a", right: formatNumber(coeffs.a1, 8) }
     ];
   }
-  if (isTustinOnePoleLowpass(result)) {
-    return [
-      { kind: "note", text: "识别为 Tustin 一阶低通结构，分子为 (1+z^-1)，因此 b0=b1。" },
-      { left: "H(z)", right: "b0(1+z^-1)/(1-a1z^-1)" },
-      { left: "b0=b1", right: formatNumber(coeffs.b0, 8) },
-      { left: "a1", right: formatNumber(coeffs.a1, 8) }
-    ];
-  }
   if (isOnePoleHighpass(result)) {
+    const a1 = tustinDenominatorA1(result);
     return [
-      { kind: "note", text: "识别为一阶高通结构，分子在 z=1 有零点，因此 DC 被抑制。" },
-      { left: "H(z)", right: "b0(1-z^-1)/(1-a1z^-1)" },
+      { kind: "note", text: "识别为一阶高通结构，分子在 z=1 有零点，因此 DC 被抑制；分母按标准 IIR 写成 1+a1z^-1。" },
+      { left: "H(z)", right: "b0(1-z^-1)/(1+a1z^-1)" },
       { left: "b0", right: formatNumber(coeffs.b0, 8) },
       { left: "b1", right: "-b0" },
-      { left: "a1", right: formatNumber(coeffs.a1, 8) }
+      { left: "a1", right: formatNumber(a1, 8) },
+      { left: "内部反馈 p", right: `-a1 = ${formatNumber(coeffs.a1, 8)}` }
     ];
   }
   if (result.order === 1) {
@@ -1597,22 +1620,24 @@ function zDerivationRows(result, coeffs) {
 }
 
 function timeDomainRows(result, coeffs) {
+  if (isTustinOnePoleLowpass(result)) {
+    const a1 = tustinDenominatorA1(result);
+    return [
+      { left: "y[n]", right: "b0·x[n] + b0·x[n-1] - a1·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.b0, 8)}·x[n-1] - (${formatNumber(a1, 8)})·y[n-1]` }
+    ];
+  }
   if (isOnePoleLowpass(result)) {
     return [
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
       { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
     ];
   }
-  if (isTustinOnePoleLowpass(result)) {
-    return [
-      { left: "y[n]", right: "b0·x[n] + b0·x[n-1] + a1·y[n-1]" },
-      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.b0, 8)}·x[n-1] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
-    ];
-  }
   if (isOnePoleHighpass(result)) {
+    const a1 = tustinDenominatorA1(result);
     return [
-      { left: "y[n]", right: "b0·x[n] - b0·x[n-1] + a1·y[n-1]" },
-      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] - ${formatNumber(coeffs.b0, 8)}·x[n-1] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+      { left: "y[n]", right: "b0·x[n] - b0·x[n-1] - a1·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] - ${formatNumber(coeffs.b0, 8)}·x[n-1] - (${formatNumber(a1, 8)})·y[n-1]` }
     ];
   }
   if (result.order === 1) {
@@ -1639,6 +1664,15 @@ function analogEquivalentRows(result) {
 }
 
 function zCoefficientSummary(result, coeffs) {
+  if (isTustinOnePoleLowpass(result)) {
+    const a1 = tustinDenominatorA1(result);
+    return [
+      "一阶低通：H(z) = b0*(1 + z^-1) / (1 + a1*z^-1)",
+      `b0 = b1 = ${formatNumber(coeffs.b0, 8)}`,
+      `a1 = ${formatNumber(a1, 8)}`,
+      `内部反馈 p = -a1 = ${formatNumber(coeffs.a1, 8)}`
+    ].join("\n");
+  }
   if (isOnePoleLowpass(result)) {
     return [
       "一阶低通：H(z) = a / (1 - (1-a)*z^-1)",
@@ -1646,19 +1680,14 @@ function zCoefficientSummary(result, coeffs) {
       `1-a = ${formatNumber(coeffs.a1, 8)}`
     ].join("\n");
   }
-  if (isTustinOnePoleLowpass(result)) {
-    return [
-      "一阶低通：H(z) = b0*(1 + z^-1) / (1 - a1*z^-1)",
-      `b0 = b1 = ${formatNumber(coeffs.b0, 8)}`,
-      `a1 = ${formatNumber(coeffs.a1, 8)}`
-    ].join("\n");
-  }
   if (isOnePoleHighpass(result)) {
+    const a1 = tustinDenominatorA1(result);
     return [
-      "一阶高通：H(z) = b0*(1 - z^-1) / (1 - a1*z^-1)",
+      "一阶高通：H(z) = b0*(1 - z^-1) / (1 + a1*z^-1)",
       `b0 = ${formatNumber(coeffs.b0, 8)}`,
       `b1 = ${formatNumber(coeffs.b1, 8)} = -b0`,
-      `a1 = ${formatNumber(coeffs.a1, 8)}`
+      `a1 = ${formatNumber(a1, 8)}`,
+      `内部反馈 p = -a1 = ${formatNumber(coeffs.a1, 8)}`
     ].join("\n");
   }
   if (result.order === 1) {
