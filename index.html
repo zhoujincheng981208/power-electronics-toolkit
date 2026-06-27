@@ -16,8 +16,8 @@
       <p class="eyebrow">Navigation</p>
       <a href="#overview">总览</a>
       <a href="#dc-calculators">Buck / Boost</a>
-      <a href="#lcl-designer">LCL 设计</a>
       <a href="#filter-designer">软件滤波器</a>
+      <a href="#lcl-designer">LCL 设计</a>
       <a href="#tool-library">工具库</a>
       <a href="#notes">个人备注</a>
     </nav>
@@ -79,6 +79,113 @@
           </div>
           <div id="boost-results" class="result-grid"></div>
         </article>
+        <article id="filter-designer" class="calculator-card wide filter-designer">
+          <div class="calculator-head">
+            <h3>软件数字滤波器工具</h3>
+            <span>一个用于设计新滤波器，一个用于查看已有滤波器参数</span>
+          </div>
+          <div class="filter-tool-switch" role="tablist" aria-label="滤波器工具选择">
+            <button id="show-filter-design" class="filter-tool-tab active" type="button" aria-controls="filter-design-tool" aria-selected="true">设计滤波器</button>
+            <button id="show-filter-analyze" class="filter-tool-tab" type="button" aria-controls="filter-analyze-tool" aria-selected="false">查看已有滤波器参数</button>
+          </div>
+          <div class="filter-workbench">
+            <section id="filter-design-tool" class="filter-subtool">
+              <div class="subtool-head">
+                <div>
+                  <p class="eyebrow">Designer</p>
+                  <h4>设计滤波器</h4>
+                </div>
+                <p class="panel-note">输入目标采样频率、截止频率和滤波器类型，生成可写进程序的系数、传函、差分方程和伯德图。</p>
+              </div>
+              <div class="form-grid three-up">
+                <label>滤波器阶数 / 结构
+                  <select id="filter-design-order">
+                    <option value="1">一阶 IIR</option>
+                    <option value="2">二阶 Biquad</option>
+                  </select>
+                </label>
+                <label>设计方法
+                  <select id="filter-design-method">
+                    <option value="matched">一阶指数 / ZOH</option>
+                    <option value="tustin">Tustin 双线性变换</option>
+                  </select>
+                </label>
+                <label>滤波器类型
+                  <select id="filter-design-type">
+                    <option value="lowpass">低通</option>
+                    <option value="highpass">高通</option>
+                    <option value="bandpass">带通（二阶）</option>
+                    <option value="notch">陷波（二阶）</option>
+                  </select>
+                </label>
+                <label>采样频率 fs (Hz)<input id="filter-design-sample-rate" type="number" value="10000" step="1"></label>
+                <label>截止 / 中心频率 fc (Hz)<input id="filter-design-frequency" type="number" value="1000" step="1"></label>
+                <label>品质因数 Q（二阶）<input id="filter-design-q" type="number" value="0.707" step="0.01"></label>
+                <label>通带增益 K (dB)<input id="filter-design-gain-db" type="number" value="0" step="0.5"></label>
+                <label>观察频率 (Hz)<input id="filter-design-probe-frequency" type="number" value="1000" step="1"></label>
+              </div>
+              <div id="filter-design-results" class="result-grid"></div>
+              <details class="derivation-toggle">
+                <summary>查看公式推导过程</summary>
+                <div id="filter-design-derivation" class="derivation-panel"></div>
+              </details>
+              <canvas id="filter-design-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
+              <div id="filter-design-checks" class="check-list"></div>
+            </section>
+
+            <section id="filter-analyze-tool" class="filter-subtool hidden">
+              <div class="subtool-head">
+                <div>
+                  <p class="eyebrow">Inspector</p>
+                  <h4>查看已有滤波器参数</h4>
+                </div>
+                <p class="panel-note">把 MCU/DSP 代码里的系数填进来，工具会查看它对应的传函、稳定性、截止点、幅相和极点。</p>
+              </div>
+              <div class="form-grid three-up">
+                <label>已有滤波器结构
+                  <select id="filter-analyze-order">
+                    <option value="1">一阶 IIR</option>
+                    <option value="2" selected>二阶 Biquad</option>
+                  </select>
+                </label>
+                <label>估计类型
+                  <select id="filter-analyze-type">
+                    <option value="lowpass">低通 / 默认</option>
+                    <option value="highpass">高通</option>
+                    <option value="bandpass">带通</option>
+                    <option value="notch">陷波</option>
+                  </select>
+                </label>
+                <label>采样频率 fs (Hz)<input id="filter-analyze-sample-rate" type="number" value="10000" step="1"></label>
+                <label>探针频率 (Hz)<input id="filter-analyze-probe-frequency" type="number" value="1000" step="1"></label>
+              </div>
+              <div class="coefficient-panel">
+                <p id="filter-analyze-equation-note" class="panel-note">查看模式不设计新系数，只按你输入的 z 域系数分析已有滤波器。</p>
+                <div class="form-grid three-up">
+                  <label><span id="filter-analyze-b0-label">b0</span><input id="filter-analyze-b0" type="number" value="0.06745228" step="0.000001"></label>
+                  <label id="filter-analyze-b1-wrap"><span id="filter-analyze-b1-label">b1</span><input id="filter-analyze-b1" type="number" value="0.13490457" step="0.000001"></label>
+                  <label class="analyze-second-order-coeff">b2<input id="filter-analyze-b2" type="number" value="0.06745228" step="0.000001"></label>
+                  <label><span id="filter-analyze-a1-label">a1 / 反馈项</span><input id="filter-analyze-a1" type="number" value="-1.14292982" step="0.000001"></label>
+                  <label class="analyze-second-order-coeff">a2<input id="filter-analyze-a2" type="number" value="0.41273895" step="0.000001"></label>
+                </div>
+              </div>
+              <div id="filter-analyze-results" class="result-grid"></div>
+              <details class="derivation-toggle">
+                <summary>查看传函和差分方程</summary>
+                <div id="filter-analyze-derivation" class="derivation-panel"></div>
+              </details>
+              <canvas id="filter-analyze-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
+              <div id="filter-analyze-checks" class="check-list"></div>
+            </section>
+          </div>
+          <details class="theory-box">
+            <summary>这个插件怎么算</summary>
+            <div class="theory-grid">
+              <article>
+                <h4>设计滤波器</h4>
+                <p>一阶低通先按 s 域原型 H(s)=1/(τs+1) 理解，其中 τ=1/ωc；看频响时再代入 s=jω。指数离散后得到 y[n]=a*x[n]+(1-a)*y[n-1]，其中 a=1-exp(-2πfc/fs)。也可以切换到 Tustin 双线性变换。</p>
+              </article>
+
         <article id="lcl-designer" class="calculator-card wide lcl-designer">
           <div class="calculator-head">
             <h3>LCL 滤波器设计器</h3>
@@ -130,107 +237,7 @@
           <p class="panel-note">这些结果用于初步设计和 sanity check，最终还要结合控制延时、采样频率、阻尼方式、并网标准和仿真结果确认。</p>
         </article>
 
-        <article id="filter-designer" class="calculator-card wide filter-designer">
-          <div class="calculator-head">
-            <h3>软件数字滤波器工具</h3>
-            <span>一个用于设计新滤波器，一个用于查看已有滤波器参数</span>
-          </div>
-          <div class="filter-tool-switch" role="tablist" aria-label="滤波器工具选择">
-            <button id="show-filter-design" class="filter-tool-tab active" type="button" aria-controls="filter-design-tool" aria-selected="true">设计滤波器</button>
-            <button id="show-filter-analyze" class="filter-tool-tab" type="button" aria-controls="filter-analyze-tool" aria-selected="false">查看已有滤波器参数</button>
-          </div>
-          <div class="filter-workbench">
-            <section id="filter-design-tool" class="filter-subtool">
-              <div class="subtool-head">
-                <div>
-                  <p class="eyebrow">Designer</p>
-                  <h4>设计滤波器</h4>
-                </div>
-                <p class="panel-note">输入目标采样频率、截止频率和滤波器类型，生成可写进程序的系数、传函、差分方程和伯德图。</p>
-              </div>
-              <div class="form-grid three-up">
-                <label>滤波器阶数 / 结构
-                  <select id="filter-design-order">
-                    <option value="1">一阶 IIR</option>
-                    <option value="2">二阶 Biquad</option>
-                  </select>
-                </label>
-                <label>设计方法
-                  <select id="filter-design-method">
-                    <option value="matched">一阶指数 / ZOH</option>
-                    <option value="tustin">Tustin 双线性变换</option>
-                  </select>
-                </label>
-                <label>滤波器类型
-                  <select id="filter-design-type">
-                    <option value="lowpass">低通</option>
-                    <option value="highpass">高通</option>
-                    <option value="bandpass">带通（二阶）</option>
-                    <option value="notch">陷波（二阶）</option>
-                  </select>
-                </label>
-                <label>采样频率 fs (Hz)<input id="filter-design-sample-rate" type="number" value="10000" step="1"></label>
-                <label>截止 / 中心频率 fc (Hz)<input id="filter-design-frequency" type="number" value="1000" step="1"></label>
-                <label>品质因数 Q（二阶）<input id="filter-design-q" type="number" value="0.707" step="0.01"></label>
-                <label>通带增益 K (dB)<input id="filter-design-gain-db" type="number" value="0" step="0.5"></label>
-                <label>观察频率 (Hz)<input id="filter-design-probe-frequency" type="number" value="1000" step="1"></label>
-              </div>
-              <div id="filter-design-results" class="result-grid"></div>
-              <div id="filter-design-derivation" class="derivation-panel"></div>
-              <canvas id="filter-design-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
-              <div id="filter-design-checks" class="check-list"></div>
-            </section>
-
-            <section id="filter-analyze-tool" class="filter-subtool hidden">
-              <div class="subtool-head">
-                <div>
-                  <p class="eyebrow">Inspector</p>
-                  <h4>查看已有滤波器参数</h4>
-                </div>
-                <p class="panel-note">把 MCU/DSP 代码里的系数填进来，工具会查看它对应的传函、稳定性、截止点、幅相和极点。</p>
-              </div>
-              <div class="form-grid three-up">
-                <label>已有滤波器结构
-                  <select id="filter-analyze-order">
-                    <option value="1">一阶 IIR</option>
-                    <option value="2" selected>二阶 Biquad</option>
-                  </select>
-                </label>
-                <label>估计类型
-                  <select id="filter-analyze-type">
-                    <option value="lowpass">低通 / 默认</option>
-                    <option value="highpass">高通</option>
-                    <option value="bandpass">带通</option>
-                    <option value="notch">陷波</option>
-                  </select>
-                </label>
-                <label>采样频率 fs (Hz)<input id="filter-analyze-sample-rate" type="number" value="10000" step="1"></label>
-                <label>探针频率 (Hz)<input id="filter-analyze-probe-frequency" type="number" value="1000" step="1"></label>
-              </div>
-              <div class="coefficient-panel">
-                <p id="filter-analyze-equation-note" class="panel-note">查看模式不设计新系数，只按你输入的 z 域系数分析已有滤波器。</p>
-                <div class="form-grid three-up">
-                  <label><span id="filter-analyze-b0-label">b0</span><input id="filter-analyze-b0" type="number" value="0.06745228" step="0.000001"></label>
-                  <label id="filter-analyze-b1-wrap"><span id="filter-analyze-b1-label">b1</span><input id="filter-analyze-b1" type="number" value="0.13490457" step="0.000001"></label>
-                  <label class="analyze-second-order-coeff">b2<input id="filter-analyze-b2" type="number" value="0.06745228" step="0.000001"></label>
-                  <label><span id="filter-analyze-a1-label">a1 / 反馈项</span><input id="filter-analyze-a1" type="number" value="-1.14292982" step="0.000001"></label>
-                  <label class="analyze-second-order-coeff">a2<input id="filter-analyze-a2" type="number" value="0.41273895" step="0.000001"></label>
-                </div>
-              </div>
-              <div id="filter-analyze-results" class="result-grid"></div>
-              <div id="filter-analyze-derivation" class="derivation-panel"></div>
-              <canvas id="filter-analyze-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
-              <div id="filter-analyze-checks" class="check-list"></div>
-            </section>
-          </div>
-          <details class="theory-box">
-            <summary>这个插件怎么算</summary>
-            <div class="theory-grid">
-              <article>
-                <h4>设计滤波器</h4>
-                <p>一阶低通先按 s 域原型 H(s)=1/(τs+1) 理解，其中 τ=1/ωc；看频响时再代入 s=jω。指数离散后得到 y[n]=a*x[n]+(1-a)*y[n-1]，其中 a=1-exp(-2πfc/fs)。也可以切换到 Tustin 双线性变换。</p>
-              </article>
-              <article>
+             <article>
                 <h4>查看已有滤波器</h4>
                 <p>一阶系数按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析；二阶系数按 H(z)=B(z)/(1+a1z^-1+a2z^-2) 分析。工具会计算幅频、相频、-3 dB 截止点、峰值、探针频率幅相和稳定性。</p>
               </article>
