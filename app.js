@@ -667,6 +667,25 @@ function interpolateCrossing(points, key, target, direction = "any") {
   return null;
 }
 
+function findCrossings(points, key, target) {
+  const crossings = [];
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const av = a[key] - target;
+    const bv = b[key] - target;
+    if (av === 0 || av * bv <= 0) {
+      const ratio = Math.abs(av) / (Math.abs(av) + Math.abs(bv));
+      crossings.push({
+        frequency: a.frequency + (b.frequency - a.frequency) * ratio,
+        magnitudeDb: a.magnitudeDb + (b.magnitudeDb - a.magnitudeDb) * ratio,
+        phaseDeg: a.phaseDeg + (b.phaseDeg - a.phaseDeg) * ratio
+      });
+    }
+  }
+  return crossings;
+}
+
 function normalizeIir(n0, n1, n2, d0, d1, d2) {
   return {
     b0: n0 / d0,
@@ -885,9 +904,17 @@ function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, ga
   const nyquist = sampleRate / 2;
   const points = [];
   const samples = 420;
+  const minPlotFrequency = Math.max(sampleRate / 100000, 0.01);
+  const logMin = Math.log10(minPlotFrequency);
+  const logMax = Math.log10(nyquist);
+  points.push({
+    frequency: 0,
+    magnitudeDb: 20 * Math.log10(Math.max(cAbs(coefficientResponse(coeffs, 0, sampleRate, order)), 1e-12)),
+    phaseDeg: cPhaseDeg(coefficientResponse(coeffs, 0, sampleRate, order))
+  });
   for (let i = 0; i < samples; i += 1) {
     const t = i / (samples - 1);
-    const freq = t * nyquist;
+    const freq = 10 ** (logMin + (logMax - logMin) * t);
     const response = coefficientResponse(coeffs, freq, sampleRate, order);
     points.push({
       frequency: freq,
@@ -905,6 +932,10 @@ function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, ga
   const passbandDb = type === "highpass" ? nyquistGainDb : type === "bandpass" ? peak.magnitudeDb : dcGainDb;
   const direction = type === "highpass" || type === "bandpass" ? "up" : "down";
   const cutoff = interpolateCrossing(points, "magnitudeDb", passbandDb - 3, direction);
+  const cutoffCrossings = findCrossings(points, "magnitudeDb", passbandDb - 3);
+  const bandEdges = type === "bandpass" && cutoffCrossings.length >= 2
+    ? [cutoffCrossings[0].frequency, cutoffCrossings[cutoffCrossings.length - 1].frequency]
+    : null;
   const probeResponse = coefficientResponse(coeffs, probeFrequency, sampleRate, order);
   const poles = poleInfo(coeffs, order);
 
@@ -923,6 +954,8 @@ function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, ga
     coeffs,
     points,
     cutoffFrequency: cutoff?.frequency || frequency,
+    lowerCutoffFrequency: bandEdges?.[0] || NaN,
+    upperCutoffFrequency: bandEdges?.[1] || NaN,
     dcGainDb,
     nyquistGainDb,
     peakMagnitudeDb: peak.magnitudeDb,
@@ -1061,7 +1094,14 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
   const magMax = Math.ceil((Math.max(...mags, 10) + 6) / 10) * 10;
   const phaseMin = Math.floor((Math.min(...phases, -360) - 20) / 45) * 45;
   const phaseMax = Math.ceil((Math.max(...phases, 90) + 20) / 45) * 45;
-  const xFor = (freq) => pad.left + (freq / result.nyquist) * plotWidth;
+  const positiveFrequencies = result.points.map((point) => point.frequency).filter((freq) => freq > 0);
+  const minFreq = Math.max(Math.min(...positiveFrequencies), 0.01);
+  const logMin = Math.log10(minFreq);
+  const logMax = Math.log10(result.nyquist);
+  const xFor = (freq) => {
+    const safeFreq = Math.max(freq, minFreq);
+    return pad.left + ((Math.log10(safeFreq) - logMin) / (logMax - logMin)) * plotWidth;
+  };
   const yMag = (db) => magBottom - ((db - magMin) / (magMax - magMin)) * (magBottom - magTop);
   const yPhase = (deg) => phaseBottom - ((deg - phaseMin) / (phaseMax - phaseMin)) * (phaseBottom - phaseTop);
 
@@ -1098,8 +1138,14 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
   ctx.fillStyle = "#566579";
   ctx.textAlign = "center";
   ctx.font = "12px Space Grotesk, sans-serif";
-  for (let i = 0; i <= 5; i += 1) {
-    const freq = result.nyquist * i / 5;
+  const ticks = [];
+  for (let decade = Math.floor(logMin); decade <= Math.ceil(logMax); decade += 1) {
+    [1, 2, 5].forEach((factor) => {
+      const tick = factor * 10 ** decade;
+      if (tick >= minFreq && tick <= result.nyquist) ticks.push(tick);
+    });
+  }
+  ticks.forEach((freq) => {
     const x = xFor(freq);
     ctx.strokeStyle = "rgba(19,34,56,.09)";
     ctx.beginPath();
@@ -1109,7 +1155,7 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
     ctx.lineTo(x, phaseBottom);
     ctx.stroke();
     ctx.fillText(formatEngineering(freq, "Hz", 1), x, height - 16);
-  }
+  });
 
   function drawCurve(yFor, color, key) {
     ctx.strokeStyle = color;
@@ -1127,16 +1173,26 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
   drawCurve(yMag, "#0f766e", "magnitudeDb");
   drawCurve(yPhase, "#c24718", "phaseDeg");
 
-  const markerX = xFor(Math.min(result.cutoffFrequency, result.nyquist));
-  ctx.strokeStyle = "rgba(194,71,24,.5)";
-  ctx.setLineDash([6, 5]);
-  ctx.beginPath();
-  ctx.moveTo(markerX, magTop);
-  ctx.lineTo(markerX, phaseBottom);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = "#c24718";
-  ctx.fillText("fc", markerX, magTop + 16);
+  const markers = result.type === "bandpass" && Number.isFinite(result.lowerCutoffFrequency)
+    ? [
+        { frequency: result.lowerCutoffFrequency, label: "f1" },
+        { frequency: result.frequency, label: "f0" },
+        { frequency: result.upperCutoffFrequency, label: "f2" }
+      ]
+    : [{ frequency: result.cutoffFrequency, label: result.type === "notch" ? "f0" : "fc" }];
+  markers.forEach((marker) => {
+    if (!Number.isFinite(marker.frequency) || marker.frequency <= 0) return;
+    const markerX = xFor(Math.min(marker.frequency, result.nyquist));
+    ctx.strokeStyle = "rgba(194,71,24,.5)";
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(markerX, magTop);
+    ctx.lineTo(markerX, phaseBottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#c24718";
+    ctx.fillText(marker.label, markerX, magTop + 16);
+  });
 }
 
 function filterStatusItems(result) {
@@ -1573,8 +1629,14 @@ function renderFilterDerivation(result, containerSelector = "#filter-design-deri
 
 function computeFilter() {
   const designed = computeDesignedFilterValues();
-  const designCutoffLabel = designed.type === "bandpass" || designed.type === "notch" ? "中心频率 / 带宽" : "-3 dB 截止估计";
-  const designCutoffValue = designed.type === "bandpass" || designed.type === "notch"
+  const designCutoffLabel = designed.type === "bandpass"
+    ? "f1 / f0 / f2"
+    : designed.type === "notch"
+    ? "陷波中心 / 宽度"
+    : "-3 dB 截止估计";
+  const designCutoffValue = designed.type === "bandpass" && Number.isFinite(designed.lowerCutoffFrequency)
+    ? `${formatNumber(designed.lowerCutoffFrequency, 2)} / ${formatNumber(designed.frequency, 2)} / ${formatNumber(designed.upperCutoffFrequency, 2)} Hz`
+    : designed.type === "notch"
     ? `${formatNumber(designed.frequency, 2)} Hz / ${formatNumber(designed.bandwidth, 2)} Hz`
     : `${formatNumber(designed.cutoffFrequency, 2)} Hz`;
   renderResultCards(elements.calculators.filter.design.output, [
