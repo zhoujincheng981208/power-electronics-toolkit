@@ -716,8 +716,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
     if (method === "matched") {
       const highpassGain = gain * (1 + alpha) / 2;
       const coeffs = type === "highpass"
-        ? { b0: highpassGain, b1: -highpassGain, b2: 0, a1: alpha, a2: 0 }
-        : { b0: 1 - alpha, b1: 0, b2: 0, a1: alpha, a2: 0 };
+        ? { b0: highpassGain, b1: -highpassGain, b2: 0, a1: -alpha, a2: 0 }
+        : { b0: 1 - alpha, b1: 0, b2: 0, a1: -alpha, a2: 0 };
       return {
         coeffs,
         alpha,
@@ -730,18 +730,18 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
             : "H(s) = ω0 / (s + ω0)",
         zForm:
           type === "highpass"
-            ? "H(z) = K*(1+alpha)/2*(1 - z^-1) / (1 - alpha*z^-1)"
-            : "H(z) = a / (1 - (1-a)*z^-1),  a = 1 - alpha"
+            ? "H(z) = K*(1+alpha)/2*(1 - z^-1) / (1 + a1*z^-1),  a1 = -alpha"
+            : "H(z) = a / (1 + a1*z^-1),  a1 = -(1-a)"
       };
     }
 
     const tau = 1 / omega;
     const m = 2 * sampleRate * tau;
     const d0 = c + omega;
-    const feedback = (c - omega) / d0;
+    const denominatorA1 = (omega - c) / d0;
     const coeffs = type === "highpass"
-      ? { b0: gain * c / d0, b1: -gain * c / d0, b2: 0, a1: feedback, a2: 0 }
-      : { b0: gain * omega / d0, b1: gain * omega / d0, b2: 0, a1: feedback, a2: 0 };
+      ? { b0: gain * c / d0, b1: -gain * c / d0, b2: 0, a1: denominatorA1, a2: 0 }
+      : { b0: gain * omega / d0, b1: gain * omega / d0, b2: 0, a1: denominatorA1, a2: 0 };
     return {
       coeffs,
       omega,
@@ -753,8 +753,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
           : "H(s) = K·ω0 / (s + ω0)",
       zForm:
         type === "highpass"
-          ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
-          : "H(z) = [K/(m+1)]*(1 + z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
+          ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 + a1*z^-1],  a1 = (1-m)/(m+1)"
+          : "H(z) = [K/(m+1)]*(1 + z^-1) / [1 + a1*z^-1],  a1 = (1-m)/(m+1)"
     };
   }
 
@@ -804,14 +804,15 @@ function coefficientResponse(coeffs, frequency, sampleRate, order = 2) {
   const z2 = complex(Math.cos(-2 * omega), Math.sin(-2 * omega));
   const numerator = cAdd(cAdd(complex(coeffs.b0), cMul(complex(coeffs.b1), z1)), cMul(complex(coeffs.b2), z2));
   const denominator = order === 1
-    ? cAdd(complex(1), cMul(complex(-coeffs.a1), z1))
+    ? cAdd(complex(1), cMul(complex(coeffs.a1), z1))
     : cAdd(cAdd(complex(1), cMul(complex(coeffs.a1), z1)), cMul(complex(coeffs.a2), z2));
   return cDiv(numerator, denominator);
 }
 
 function poleInfo(coeffs, order = 2) {
   if (order === 1) {
-    return { maxRadius: Math.abs(coeffs.a1), text: formatNumber(coeffs.a1, 4) };
+    const pole = -coeffs.a1;
+    return { maxRadius: Math.abs(pole), text: formatNumber(pole, 4) };
   }
   const discriminant = coeffs.a1 * coeffs.a1 - 4 * coeffs.a2;
   if (discriminant >= 0) {
@@ -1079,7 +1080,7 @@ function updateAnalyzeCoefficientLabels(result) {
   if (isTustinOnePoleLowpass(result)) {
     if (b0Label) b0Label.textContent = "b0";
     if (b1Label) b1Label.textContent = "b1 = b0";
-    if (a1Label) a1Label.textContent = "内部反馈 p = -a1";
+    if (a1Label) a1Label.textContent = "a1";
     if (b1Wrap) b1Wrap.classList.remove("hidden");
     return;
   }
@@ -1098,7 +1099,7 @@ function updateAnalyzeCoefficientLabels(result) {
   }
   if (b0Label) b0Label.textContent = "b0";
   if (b1Label) b1Label.textContent = "b1";
-  if (a1Label) a1Label.textContent = result.order === 1 ? "a1 / 反馈项" : "a1";
+  if (a1Label) a1Label.textContent = "a1";
   if (b1Wrap) b1Wrap.classList.remove("hidden");
 }
 
@@ -1247,11 +1248,11 @@ function filterStatusItems(result) {
   const tustinOnePoleLowpass = isTustinOnePoleLowpass(result);
   const onePoleHighpass = isOnePoleHighpass(result);
   const coefficientText = onePoleLowpass
-    ? `a=${formatNumber(result.coeffs.b0, 6)}, 1-a=${formatNumber(result.coeffs.a1, 6)}`
+    ? `a=${formatNumber(result.coeffs.b0, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
     : tustinOnePoleLowpass
-    ? `b0=b1=${formatNumber(result.coeffs.b0, 6)}, a1=${formatNumber(tustinDenominatorA1(result), 6)}, 内部反馈p=${formatNumber(result.coeffs.a1, 6)}`
+    ? `b0=b1=${formatNumber(result.coeffs.b0, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
     : onePoleHighpass
-    ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=-b0, a1=${formatNumber(tustinDenominatorA1(result), 6)}, 内部反馈p=${formatNumber(result.coeffs.a1, 6)}`
+    ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=-b0, a1=${formatNumber(result.coeffs.a1, 6)}`
     : result.order === 1
     ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=${formatNumber(result.coeffs.b1, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
     : `b=[${formatNumber(result.coeffs.b0, 6)}, ${formatNumber(result.coeffs.b1, 6)}, ${formatNumber(result.coeffs.b2, 6)}], a=[1, ${formatNumber(result.coeffs.a1, 6)}, ${formatNumber(result.coeffs.a2, 6)}]`;
@@ -1347,10 +1348,10 @@ function isOnePoleLowpass(result) {
   return result.order === 1
     && result.type === "lowpass"
     && Math.abs(coeffs.b1) < 1e-9
-    && Math.abs(coeffs.b0 + coeffs.a1 - 1) < 1e-5
+    && Math.abs(coeffs.b0 - coeffs.a1 - 1) < 1e-5
     && coeffs.b0 >= 0
     && coeffs.a1 > -1
-    && coeffs.a1 < 1;
+    && coeffs.a1 < 0;
 }
 
 function isTustinOnePoleLowpass(result) {
@@ -1362,7 +1363,7 @@ function isTustinOnePoleLowpass(result) {
 }
 
 function tustinDenominatorA1(result) {
-  return -result.coeffs.a1;
+  return result.coeffs.a1;
 }
 
 function isOnePoleHighpass(result) {
@@ -1417,11 +1418,12 @@ function zFormulaParts(result) {
   }
   if (isOnePoleLowpass(result)) {
     const a = result.coeffs.b0;
+    const oneMinusA = -result.coeffs.a1;
     return {
       left: "H(z) =",
       numerator: "a",
       denominator: "1 - (1-a)z^-1",
-      note: `识别为一阶低通：a = ${formatNumber(a, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
+      note: `识别为一阶低通：a = ${formatNumber(a, 8)}，1-a = ${formatNumber(oneMinusA, 8)}，标准分母 a1=${formatNumber(result.coeffs.a1, 8)}。`
     };
   }
   if (isOnePoleHighpass(result)) {
@@ -1561,11 +1563,11 @@ function zDerivationRows(result, coeffs) {
       { kind: "note", text: "识别为 Tustin 一阶低通结构：分子为 (1+z^-1)，分母按标准 IIR 写成 1+a1z^-1，此时 a1 为负数。" },
       { left: "H(z)", right: "b0(1+z^-1)/(1+a1z^-1)" },
       { left: "b0=b1", right: formatNumber(coeffs.b0, 8) },
-      { left: "a1", right: formatNumber(a1, 8) },
-      { left: "内部反馈 p", right: `-a1 = ${formatNumber(coeffs.a1, 8)}` }
+      { left: "a1", right: formatNumber(a1, 8) }
     ];
   }
   if (isOnePoleLowpass(result)) {
+    const oneMinusA = -coeffs.a1;
     return [
       { kind: "note", text: "识别为一阶低通结构，按参考原型的一阶低通递推式查看。" },
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
@@ -1573,7 +1575,8 @@ function zDerivationRows(result, coeffs) {
       { left: "Y(z)[1-(1-a)z^-1]", right: "a·X(z)" },
       { left: "H(z)", right: "Y(z)/X(z) = a/[1-(1-a)z^-1]" },
       { left: "a", right: formatNumber(coeffs.b0, 8) },
-      { left: "1-a", right: formatNumber(coeffs.a1, 8) }
+      { left: "1-a", right: formatNumber(oneMinusA, 8) },
+      { left: "标准 a1", right: formatNumber(coeffs.a1, 8) }
     ];
   }
   if (isOnePoleHighpass(result)) {
@@ -1583,8 +1586,7 @@ function zDerivationRows(result, coeffs) {
       { left: "H(z)", right: "b0(1-z^-1)/(1+a1z^-1)" },
       { left: "b0", right: formatNumber(coeffs.b0, 8) },
       { left: "b1", right: "-b0" },
-      { left: "a1", right: formatNumber(a1, 8) },
-      { left: "内部反馈 p", right: `-a1 = ${formatNumber(coeffs.a1, 8)}` }
+      { left: "a1", right: formatNumber(a1, 8) }
     ];
   }
   if (result.order === 1) {
@@ -1628,9 +1630,10 @@ function timeDomainRows(result, coeffs) {
     ];
   }
   if (isOnePoleLowpass(result)) {
+    const oneMinusA = -coeffs.a1;
     return [
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
-      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(oneMinusA, 8)}·y[n-1]` }
     ];
   }
   if (isOnePoleHighpass(result)) {
@@ -1669,15 +1672,16 @@ function zCoefficientSummary(result, coeffs) {
     return [
       "一阶低通：H(z) = b0*(1 + z^-1) / (1 + a1*z^-1)",
       `b0 = b1 = ${formatNumber(coeffs.b0, 8)}`,
-      `a1 = ${formatNumber(a1, 8)}`,
-      `内部反馈 p = -a1 = ${formatNumber(coeffs.a1, 8)}`
+      `a1 = ${formatNumber(a1, 8)}`
     ].join("\n");
   }
   if (isOnePoleLowpass(result)) {
+    const oneMinusA = -coeffs.a1;
     return [
       "一阶低通：H(z) = a / (1 - (1-a)*z^-1)",
       `a = ${formatNumber(coeffs.b0, 8)}`,
-      `1-a = ${formatNumber(coeffs.a1, 8)}`
+      `1-a = ${formatNumber(oneMinusA, 8)}`,
+      `标准 a1 = ${formatNumber(coeffs.a1, 8)}`
     ].join("\n");
   }
   if (isOnePoleHighpass(result)) {
@@ -1686,8 +1690,7 @@ function zCoefficientSummary(result, coeffs) {
       "一阶高通：H(z) = b0*(1 - z^-1) / (1 + a1*z^-1)",
       `b0 = ${formatNumber(coeffs.b0, 8)}`,
       `b1 = ${formatNumber(coeffs.b1, 8)} = -b0`,
-      `a1 = ${formatNumber(a1, 8)}`,
-      `内部反馈 p = -a1 = ${formatNumber(coeffs.a1, 8)}`
+      `a1 = ${formatNumber(a1, 8)}`
     ].join("\n");
   }
   if (result.order === 1) {
