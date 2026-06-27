@@ -79,24 +79,33 @@ const elements = {
       output: document.querySelector("#lcl-results")
     },
     filter: {
-      inputs: {
-        modeDesign: document.querySelector("#filter-mode-design"),
-        modeAnalyze: document.querySelector("#filter-mode-analyze"),
-        order: document.querySelector("#filter-order"),
-        method: document.querySelector("#filter-method"),
-        type: document.querySelector("#filter-type"),
-        sampleRate: document.querySelector("#filter-sample-rate"),
-        frequency: document.querySelector("#filter-frequency"),
-        q: document.querySelector("#filter-q"),
-        gainDb: document.querySelector("#filter-gain-db"),
-        b0: document.querySelector("#filter-b0"),
-        b1: document.querySelector("#filter-b1"),
-        b2: document.querySelector("#filter-b2"),
-        a1: document.querySelector("#filter-a1"),
-        a2: document.querySelector("#filter-a2"),
-        probeFrequency: document.querySelector("#filter-probe-frequency")
+      design: {
+        inputs: {
+          order: document.querySelector("#filter-design-order"),
+          method: document.querySelector("#filter-design-method"),
+          type: document.querySelector("#filter-design-type"),
+          sampleRate: document.querySelector("#filter-design-sample-rate"),
+          frequency: document.querySelector("#filter-design-frequency"),
+          q: document.querySelector("#filter-design-q"),
+          gainDb: document.querySelector("#filter-design-gain-db"),
+          probeFrequency: document.querySelector("#filter-design-probe-frequency")
+        },
+        output: document.querySelector("#filter-design-results")
       },
-      output: document.querySelector("#filter-results")
+      analyze: {
+        inputs: {
+          order: document.querySelector("#filter-analyze-order"),
+          type: document.querySelector("#filter-analyze-type"),
+          sampleRate: document.querySelector("#filter-analyze-sample-rate"),
+          probeFrequency: document.querySelector("#filter-analyze-probe-frequency"),
+          b0: document.querySelector("#filter-analyze-b0"),
+          b1: document.querySelector("#filter-analyze-b1"),
+          b2: document.querySelector("#filter-analyze-b2"),
+          a1: document.querySelector("#filter-analyze-a1"),
+          a2: document.querySelector("#filter-analyze-a2")
+        },
+        output: document.querySelector("#filter-analyze-results")
+      }
     }
   }
 };
@@ -791,17 +800,9 @@ function poleInfo(coeffs, order = 2) {
   return { maxRadius: Math.hypot(real, imag), text: `${formatNumber(real, 4)} +/- j${formatNumber(imag, 4)}` };
 }
 
-function setCoefficientInputs(coeffs) {
-  Object.entries(coeffs).forEach(([key, value]) => {
-    const input = elements.calculators.filter.inputs[key];
-    if (input) input.value = formatNumber(value, 8);
-  });
-}
-
 function syncFilterTypeOptions() {
-  const inputs = elements.calculators.filter.inputs;
+  const inputs = elements.calculators.filter.design.inputs;
   const order = Number(inputs.order.value);
-  const isDesignMode = !inputs.modeAnalyze.checked;
   [...inputs.type.options].forEach((option) => {
     option.disabled = order === 1 && (option.value === "bandpass" || option.value === "notch");
   });
@@ -809,59 +810,29 @@ function syncFilterTypeOptions() {
     inputs.type.value = "lowpass";
   }
   inputs.method.disabled = order === 2;
-  document.querySelectorAll(".second-order-coeff").forEach((node) => {
-    node.classList.toggle("hidden", order === 1);
-  });
-  const onePoleLowpass = order === 1 && isDesignMode && inputs.method.value === "matched" && inputs.type.value === "lowpass";
-  const b0Label = document.querySelector("#filter-b0-label");
-  const b1Label = document.querySelector("#filter-b1-label");
-  const a1Label = document.querySelector("#filter-a1-label");
-  const b1Wrap = document.querySelector("#filter-b1-wrap");
-  if (b0Label) b0Label.textContent = onePoleLowpass ? "a" : "b0";
-  if (b1Label) b1Label.textContent = "b1";
-  if (a1Label) a1Label.textContent = onePoleLowpass ? "1-a" : "a1";
-  if (b1Wrap) b1Wrap.classList.toggle("hidden", onePoleLowpass);
+  const onePoleLowpass = order === 1 && inputs.method.value === "matched" && inputs.type.value === "lowpass";
   inputs.gainDb.disabled = onePoleLowpass;
   if (onePoleLowpass) inputs.gainDb.value = 0;
-  const equationNote = document.querySelector("#filter-equation-note");
-  if (equationNote) {
-    equationNote.textContent = onePoleLowpass
-      ? "一阶低通离散公式：y[n] = a*x[n] + (1-a)*y[n-1]，对应 H(z)=a/(1-(1-a)z^-1)。"
-      : order === 1
-      ? "一阶通用 IIR：y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]，分母写作 1-a1*z^-1。"
-      : "二阶 Biquad：H(z)=B(z)/(1+a1*z^-1+a2*z^-2)，所以时域里是 -a1*y[n-1] - a2*y[n-2]。";
+}
+
+function syncAnalyzeFilterOptions() {
+  const inputs = elements.calculators.filter.analyze.inputs;
+  const order = Number(inputs.order.value);
+  document.querySelectorAll(".analyze-second-order-coeff").forEach((node) => {
+    node.classList.toggle("hidden", order === 1);
+  });
+  const b1Wrap = document.querySelector("#filter-analyze-b1-wrap");
+  if (b1Wrap) b1Wrap.classList.toggle("hidden", false);
+  const note = document.querySelector("#filter-analyze-equation-note");
+  if (note) {
+    note.textContent = order === 1
+      ? "一阶查看：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析，因此时域为 +a1*y[n-1]。"
+      : "二阶查看：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，因此时域为 -a1*y[n-1]-a2*y[n-2]。";
   }
 }
 
-function computeFilterValues() {
-  const inputs = elements.calculators.filter.inputs;
-  syncFilterTypeOptions();
-  const mode = inputs.modeAnalyze.checked ? "analyze" : "design";
-  const sampleRate = toNumber(inputs.sampleRate);
+function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, gainDb, design, probeFrequency, coeffs }) {
   const nyquist = sampleRate / 2;
-  const order = Number(inputs.order.value);
-  const method = inputs.method.value;
-  let type = inputs.type.value;
-  if (order === 1 && (type === "bandpass" || type === "notch")) type = "lowpass";
-  const frequency = toNumber(inputs.frequency);
-  const q = toNumber(inputs.q);
-  const gainDb = toNumber(inputs.gainDb);
-  const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
-  const design = mode === "design"
-    ? designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, method })
-    : null;
-  const coeffs = design
-    ? design.coeffs
-    : {
-        b0: toNumber(inputs.b0),
-        b1: toNumber(inputs.b1),
-        b2: toNumber(inputs.b2),
-        a1: toNumber(inputs.a1),
-        a2: toNumber(inputs.a2)
-      };
-
-  if (mode === "design") setCoefficientInputs(coeffs);
-
   const points = [];
   const samples = 420;
   for (let i = 0; i < samples; i += 1) {
@@ -915,13 +886,70 @@ function computeFilterValues() {
   };
 }
 
+function computeDesignedFilterValues() {
+  const inputs = elements.calculators.filter.design.inputs;
+  syncFilterTypeOptions();
+  const sampleRate = toNumber(inputs.sampleRate);
+  const nyquist = sampleRate / 2;
+  const order = Number(inputs.order.value);
+  const method = inputs.method.value;
+  let type = inputs.type.value;
+  if (order === 1 && (type === "bandpass" || type === "notch")) type = "lowpass";
+  const frequency = toNumber(inputs.frequency);
+  const q = toNumber(inputs.q);
+  const gainDb = toNumber(inputs.gainDb);
+  const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
+  const design = designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, method });
+  return analyzeFilterResponse({
+    mode: "design",
+    order,
+    type,
+    sampleRate,
+    frequency,
+    q,
+    gainDb,
+    design,
+    probeFrequency,
+    coeffs: design.coeffs
+  });
+}
+
+function computeAnalyzedFilterValues() {
+  const inputs = elements.calculators.filter.analyze.inputs;
+  syncAnalyzeFilterOptions();
+  const sampleRate = toNumber(inputs.sampleRate);
+  const nyquist = sampleRate / 2;
+  const order = Number(inputs.order.value);
+  const type = inputs.type.value;
+  const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
+  const coeffs = {
+    b0: toNumber(inputs.b0),
+    b1: toNumber(inputs.b1),
+    b2: order === 1 ? 0 : toNumber(inputs.b2),
+    a1: toNumber(inputs.a1),
+    a2: order === 1 ? 0 : toNumber(inputs.a2)
+  };
+  return analyzeFilterResponse({
+    mode: "analyze",
+    order,
+    type,
+    sampleRate,
+    frequency: probeFrequency,
+    q: NaN,
+    gainDb: 0,
+    design: null,
+    probeFrequency,
+    coeffs
+  });
+}
+
 function filterTypeLabel(result) {
   const labels = { lowpass: "低通", highpass: "高通", bandpass: "带通", notch: "陷波" };
   return `${result.order} 阶 ${labels[result.type]}`;
 }
 
-function drawBodeChart(result) {
-  const canvas = document.querySelector("#filter-bode-chart");
+function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
+  const canvas = document.querySelector(canvasSelector);
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
@@ -1025,9 +1053,12 @@ function filterStatusItems(result) {
     : result.order === 1
     ? `b0=${formatNumber(result.coeffs.b0, 6)}, b1=${formatNumber(result.coeffs.b1, 6)}, a1=${formatNumber(result.coeffs.a1, 6)}`
     : `b=[${formatNumber(result.coeffs.b0, 6)}, ${formatNumber(result.coeffs.b1, 6)}, ${formatNumber(result.coeffs.b2, 6)}], a=[1, ${formatNumber(result.coeffs.a1, 6)}, ${formatNumber(result.coeffs.a2, 6)}]`;
+  const freqText = result.mode === "design"
+    ? `设计频率 fc=${formatNumber(result.frequency, 2)} Hz`
+    : `探针频率=${formatNumber(result.probeFrequency, 2)} Hz`;
   items.push({
-    level: result.sampleRate > 0 && result.frequency < result.nyquist ? "ok" : "bad",
-    text: `采样频率 fs=${formatNumber(result.sampleRate, 2)} Hz，Nyquist=${formatNumber(result.nyquist, 2)} Hz。设计时 fc 必须小于 fs/2。`
+    level: result.sampleRate > 0 && (result.mode !== "design" || result.frequency < result.nyquist) ? "ok" : "bad",
+    text: `采样频率 fs=${formatNumber(result.sampleRate, 2)} Hz，Nyquist=${formatNumber(result.nyquist, 2)} Hz，${freqText}。`
   });
   items.push({
     level: result.stable ? "ok" : "bad",
@@ -1289,8 +1320,8 @@ function analogEquivalentRows(result) {
   });
 }
 
-function renderFilterDerivation(result) {
-  const container = document.querySelector("#filter-derivation");
+function renderFilterDerivation(result, containerSelector = "#filter-design-derivation") {
+  const container = document.querySelector(containerSelector);
   if (!container) return;
   container.innerHTML = "";
 
@@ -1414,19 +1445,31 @@ function renderFilterDerivation(result) {
 }
 
 function computeFilter() {
-  const result = computeFilterValues();
-  const modeLabel = result.mode === "design" ? "按指标设计" : "按系数分析";
-  renderResultCards(elements.calculators.filter.output, [
-    { label: "工作模式", value: modeLabel },
-    { label: "滤波器类型", value: filterTypeLabel(result) },
-    { label: "-3 dB 截止估计", value: `${formatNumber(result.cutoffFrequency, 2)} Hz` },
-    { label: "DC 增益", value: `${formatNumber(result.dcGainDb, 2)} dB` },
-    { label: "Nyquist 增益", value: `${formatNumber(result.nyquistGainDb, 2)} dB` },
-    { label: "稳定性", value: result.stable ? "稳定" : "不稳定" }
+  const designed = computeDesignedFilterValues();
+  renderResultCards(elements.calculators.filter.design.output, [
+    { label: "输出", value: "新滤波器系数" },
+    { label: "滤波器类型", value: filterTypeLabel(designed) },
+    { label: "-3 dB 截止估计", value: `${formatNumber(designed.cutoffFrequency, 2)} Hz` },
+    { label: "DC 增益", value: `${formatNumber(designed.dcGainDb, 2)} dB` },
+    { label: "Nyquist 增益", value: `${formatNumber(designed.nyquistGainDb, 2)} dB` },
+    { label: "稳定性", value: designed.stable ? "稳定" : "不稳定" }
   ]);
-  renderFilterDerivation(result);
-  drawBodeChart(result);
-  renderChecks("#filter-checks", filterStatusItems(result));
+  renderFilterDerivation(designed, "#filter-design-derivation");
+  drawBodeChart(designed, "#filter-design-bode-chart");
+  renderChecks("#filter-design-checks", filterStatusItems(designed));
+
+  const analyzed = computeAnalyzedFilterValues();
+  renderResultCards(elements.calculators.filter.analyze.output, [
+    { label: "输出", value: "已有滤波器性能" },
+    { label: "滤波器类型", value: filterTypeLabel(analyzed) },
+    { label: "-3 dB 截止估计", value: `${formatNumber(analyzed.cutoffFrequency, 2)} Hz` },
+    { label: "探针幅值", value: `${formatNumber(analyzed.probeMagnitudeDb, 2)} dB` },
+    { label: "探针相位", value: `${formatNumber(analyzed.probePhaseDeg, 1)}°` },
+    { label: "稳定性", value: analyzed.stable ? "稳定" : "不稳定" }
+  ]);
+  renderFilterDerivation(analyzed, "#filter-analyze-derivation");
+  drawBodeChart(analyzed, "#filter-analyze-bode-chart");
+  renderChecks("#filter-analyze-checks", filterStatusItems(analyzed));
 }
 
 function initEnhancedLclControls() {
@@ -1458,13 +1501,17 @@ function initEnhancedLclControls() {
 }
 
 function initCalculators() {
+  function bindInputs(node) {
+    if (!node || typeof node !== "object") return;
+    if (typeof node.addEventListener === "function") {
+      node.addEventListener("input", runCalculators);
+      node.addEventListener("change", runCalculators);
+      return;
+    }
+    Object.values(node).forEach(bindInputs);
+  }
   Object.values(elements.calculators).forEach((calculator) => {
-    Object.values(calculator.inputs).forEach((input) => {
-      if (input) {
-        input.addEventListener("input", runCalculators);
-        input.addEventListener("change", runCalculators);
-      }
-    });
+    bindInputs(calculator.inputs || calculator);
   });
   runCalculators();
 }

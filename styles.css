@@ -312,6 +312,35 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid rgba(15,118,110,.14);
 }
 
+.filter-workbench {
+  display: grid;
+  gap: 18px;
+}
+
+.filter-subtool {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.86), rgba(241,249,248,.74)),
+    radial-gradient(circle at top left, rgba(15,118,110,.1), transparent 36%);
+  border: 1px solid rgba(15,118,110,.14);
+}
+
+.subtool-head {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.subtool-head h4 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.25rem;
+}
+
 .derivation-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
