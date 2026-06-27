@@ -834,12 +834,6 @@ function syncAnalyzeFilterOptions() {
   });
   const b1Wrap = document.querySelector("#filter-analyze-b1-wrap");
   if (b1Wrap) b1Wrap.classList.toggle("hidden", false);
-  const note = document.querySelector("#filter-analyze-equation-note");
-  if (note) {
-    note.textContent = order === 1
-      ? "一阶查看：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析。低通常见形式是 b0=a, b1=0, a1=1-a，稳定条件是 |a1|<1。"
-      : "二阶查看：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，因此时域为 -a1*y[n-1]-a2*y[n-2]。";
-  }
 }
 
 function setAnalyzeExampleCoefficients(order) {
@@ -960,7 +954,7 @@ function computeAnalyzedFilterValues() {
     a1: toNumber(inputs.a1),
     a2: order === 1 ? 0 : toNumber(inputs.a2)
   };
-  return analyzeFilterResponse({
+  const result = analyzeFilterResponse({
     mode: "analyze",
     order,
     type,
@@ -972,6 +966,24 @@ function computeAnalyzedFilterValues() {
     probeFrequency,
     coeffs
   });
+  updateAnalyzeEquationNote(result);
+  return result;
+}
+
+function updateAnalyzeEquationNote(result) {
+  const note = document.querySelector("#filter-analyze-equation-note");
+  if (!note) return;
+  if (isOnePoleLowpass(result)) {
+    note.textContent = "一阶低通：已识别为 H(z)=a/(1-(1-a)z^-1)，对应 y[n]=a*x[n]+(1-a)*y[n-1]，稳定条件是 |1-a|<1。";
+    return;
+  }
+  if (isOnePoleHighpass(result)) {
+    note.textContent = "一阶高通：已识别为 H(z)=b0*(1-z^-1)/(1-a1*z^-1)，分子在 z=1 有零点，稳定条件是 |a1|<1。";
+    return;
+  }
+  note.textContent = result.order === 1
+    ? "一阶通用 IIR：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析，稳定条件是 |a1|<1。"
+    : "二阶 Biquad：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，时域为 -a1*y[n-1]-a2*y[n-2]。";
 }
 
 function filterTypeLabel(result) {
