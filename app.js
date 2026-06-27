@@ -91,7 +91,11 @@ const elements = {
           q: document.querySelector("#filter-design-q"),
           bandwidth: document.querySelector("#filter-design-bandwidth"),
           gainDb: document.querySelector("#filter-design-gain-db"),
-          probeFrequency: document.querySelector("#filter-design-probe-frequency")
+          probeFrequency: document.querySelector("#filter-design-probe-frequency"),
+          chartFmin: document.querySelector("#filter-design-chart-fmin"),
+          chartFmax: document.querySelector("#filter-design-chart-fmax"),
+          chartMagMin: document.querySelector("#filter-design-chart-mag-min"),
+          chartMagMax: document.querySelector("#filter-design-chart-mag-max")
         },
         output: document.querySelector("#filter-design-results")
       },
@@ -105,7 +109,11 @@ const elements = {
           b1: document.querySelector("#filter-analyze-b1"),
           b2: document.querySelector("#filter-analyze-b2"),
           a1: document.querySelector("#filter-analyze-a1"),
-          a2: document.querySelector("#filter-analyze-a2")
+          a2: document.querySelector("#filter-analyze-a2"),
+          chartFmin: document.querySelector("#filter-analyze-chart-fmin"),
+          chartFmax: document.querySelector("#filter-analyze-chart-fmax"),
+          chartMagMin: document.querySelector("#filter-analyze-chart-mag-min"),
+          chartMagMax: document.querySelector("#filter-analyze-chart-mag-max")
         },
         output: document.querySelector("#filter-analyze-results")
       }
@@ -970,6 +978,15 @@ function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, ga
   };
 }
 
+function readChartRange(inputs) {
+  return {
+    fmin: toNumber(inputs.chartFmin),
+    fmax: toNumber(inputs.chartFmax),
+    magMin: toNumber(inputs.chartMagMin),
+    magMax: toNumber(inputs.chartMagMax)
+  };
+}
+
 function computeDesignedFilterValues() {
   const inputs = elements.calculators.filter.design.inputs;
   syncFilterTypeOptions();
@@ -984,7 +1001,7 @@ function computeDesignedFilterValues() {
   const gainDb = toNumber(inputs.gainDb);
   const probeFrequency = Math.min(toNumber(inputs.probeFrequency), nyquist);
   const design = designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, method });
-  return analyzeFilterResponse({
+  const result = analyzeFilterResponse({
     mode: "design",
     order,
     type,
@@ -996,6 +1013,8 @@ function computeDesignedFilterValues() {
     probeFrequency,
     coeffs: design.coeffs
   });
+  result.chartRange = readChartRange(inputs);
+  return result;
 }
 
 function computeAnalyzedFilterValues() {
@@ -1025,6 +1044,7 @@ function computeAnalyzedFilterValues() {
     probeFrequency,
     coeffs
   });
+  result.chartRange = readChartRange(inputs);
   updateAnalyzeEquationNote(result);
   updateAnalyzeCoefficientLabels(result);
   return result;
@@ -1088,16 +1108,30 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
   const phaseTop = mid + 34;
   const phaseBottom = height - pad.bottom;
   const plotWidth = width - pad.left - pad.right;
-  const mags = result.points.map((point) => point.magnitudeDb);
-  const phases = result.points.map((point) => point.phaseDeg);
-  const magMin = Math.floor((Math.min(...mags, -80) - 6) / 10) * 10;
-  const magMax = Math.ceil((Math.max(...mags, 10) + 6) / 10) * 10;
+  const range = result.chartRange || {};
+  const autoPositive = result.points.map((point) => point.frequency).filter((freq) => freq > 0);
+  const autoMinFreq = Math.max(Math.min(...autoPositive), 0.01);
+  const requestedFmin = Number.isFinite(range.fmin) && range.fmin > 0 ? range.fmin : autoMinFreq;
+  const requestedFmax = Number.isFinite(range.fmax) && range.fmax > requestedFmin ? range.fmax : result.nyquist;
+  const plotPoints = result.points.filter((point) => point.frequency === 0 || (point.frequency >= requestedFmin && point.frequency <= requestedFmax));
+  const curvePoints = plotPoints.filter((point) => point.frequency > 0);
+  const visiblePoints = curvePoints.length ? curvePoints : result.points.filter((point) => point.frequency > 0);
+  const mags = visiblePoints.map((point) => point.magnitudeDb);
+  const phases = visiblePoints.map((point) => point.phaseDeg);
+  const autoMagMin = Math.floor((Math.min(...mags, -80) - 6) / 10) * 10;
+  const autoMagMax = Math.ceil((Math.max(...mags, 10) + 6) / 10) * 10;
+  let magMin = Number.isFinite(range.magMin) ? range.magMin : autoMagMin;
+  let magMax = Number.isFinite(range.magMax) && range.magMax > magMin ? range.magMax : autoMagMax;
+  if (magMax <= magMin) {
+    magMin -= 10;
+    magMax += 10;
+  }
   const phaseMin = Math.floor((Math.min(...phases, -360) - 20) / 45) * 45;
   const phaseMax = Math.ceil((Math.max(...phases, 90) + 20) / 45) * 45;
-  const positiveFrequencies = result.points.map((point) => point.frequency).filter((freq) => freq > 0);
-  const minFreq = Math.max(Math.min(...positiveFrequencies), 0.01);
+  const minFreq = requestedFmin;
+  const maxFreq = Math.min(requestedFmax, result.nyquist);
   const logMin = Math.log10(minFreq);
-  const logMax = Math.log10(result.nyquist);
+  const logMax = Math.log10(maxFreq);
   const xFor = (freq) => {
     const safeFreq = Math.max(freq, minFreq);
     return pad.left + ((Math.log10(safeFreq) - logMin) / (logMax - logMin)) * plotWidth;
@@ -1142,7 +1176,7 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
   for (let decade = Math.floor(logMin); decade <= Math.ceil(logMax); decade += 1) {
     [1, 2, 5].forEach((factor) => {
       const tick = factor * 10 ** decade;
-      if (tick >= minFreq && tick <= result.nyquist) ticks.push(tick);
+      if (tick >= minFreq && tick <= maxFreq) ticks.push(tick);
     });
   }
   ticks.forEach((freq) => {
@@ -1161,7 +1195,7 @@ function drawBodeChart(result, canvasSelector = "#filter-design-bode-chart") {
     ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    result.points.forEach((point, index) => {
+    visiblePoints.forEach((point, index) => {
       const x = xFor(point.frequency);
       const y = yFor(point[key]);
       if (index === 0) ctx.moveTo(x, y);

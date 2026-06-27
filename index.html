@@ -130,6 +130,15 @@
                 <summary>查看公式推导过程</summary>
                 <div id="filter-design-derivation" class="derivation-panel"></div>
               </details>
+              <details class="chart-range-panel">
+                <summary>调整伯德图坐标范围</summary>
+                <div class="form-grid four-up">
+                  <label>频率下限 (Hz)<input id="filter-design-chart-fmin" type="number" placeholder="自动" step="0.1"></label>
+                  <label>频率上限 (Hz)<input id="filter-design-chart-fmax" type="number" placeholder="自动" step="0.1"></label>
+                  <label>幅值下限 (dB)<input id="filter-design-chart-mag-min" type="number" placeholder="自动" step="1"></label>
+                  <label>幅值上限 (dB)<input id="filter-design-chart-mag-max" type="number" placeholder="自动" step="1"></label>
+                </div>
+              </details>
               <canvas id="filter-design-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
               <div id="filter-design-checks" class="check-list"></div>
             </section>
@@ -174,6 +183,15 @@
               <details class="derivation-toggle">
                 <summary>查看传函和差分方程</summary>
                 <div id="filter-analyze-derivation" class="derivation-panel"></div>
+              </details>
+              <details class="chart-range-panel">
+                <summary>调整伯德图坐标范围</summary>
+                <div class="form-grid four-up">
+                  <label>频率下限 (Hz)<input id="filter-analyze-chart-fmin" type="number" placeholder="自动" step="0.1"></label>
+                  <label>频率上限 (Hz)<input id="filter-analyze-chart-fmax" type="number" placeholder="自动" step="0.1"></label>
+                  <label>幅值下限 (dB)<input id="filter-analyze-chart-mag-min" type="number" placeholder="自动" step="1"></label>
+                  <label>幅值上限 (dB)<input id="filter-analyze-chart-mag-max" type="number" placeholder="自动" step="1"></label>
+                </div>
               </details>
               <canvas id="filter-analyze-bode-chart" class="bode-chart" width="1100" height="520"></canvas>
               <div id="filter-analyze-checks" class="check-list"></div>

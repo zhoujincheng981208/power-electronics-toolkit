@@ -140,6 +140,7 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 .form-grid.three-up { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.form-grid.four-up { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .form-grid label, .tool-form label { display: grid; gap: 8px; color: var(--muted); }
 .form-grid input, .search-box input, .tool-form input, .tool-form textarea, .tool-form select, #global-notes, .card-note {
   width: 100%;
@@ -400,6 +401,24 @@ a { color: inherit; text-decoration: none; }
 
 .derivation-toggle .derivation-panel {
   padding: 14px;
+}
+
+.chart-range-panel {
+  border: 1px solid rgba(19,34,56,.1);
+  border-radius: 16px;
+  background: rgba(255,255,255,.54);
+  overflow: hidden;
+}
+
+.chart-range-panel summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.chart-range-panel .form-grid {
+  padding: 0 14px 14px;
 }
 
 .derivation-panel article {
