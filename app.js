@@ -768,39 +768,33 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
   let n1;
   let n2;
   let analog;
-  let zNumerator;
 
   if (type === "highpass") {
     n0 = gain * c2;
     n1 = -2 * gain * c2;
     n2 = gain * c2;
     analog = "H(s) = K*s^2 / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
-    zNumerator = "K*(2fs)^2*(1 - 2z^-1 + z^-2)";
   } else if (type === "bandpass") {
     n0 = gain * damping * c;
     n1 = 0;
     n2 = -gain * damping * c;
     analog = "H(s) = K*2ξω0s / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
-    zNumerator = "K*(w0/Q)*2fs*(1 - z^-2)";
   } else if (type === "notch") {
     n0 = gain * (c2 + omega2);
     n1 = gain * (-2 * c2 + 2 * omega2);
     n2 = gain * (c2 + omega2);
     analog = "H(s) = K*(s^2 + ω0^2) / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
-    zNumerator = "K*[(2fs)^2(1 - 2z^-1 + z^-2) + w0^2(1 + 2z^-1 + z^-2)]";
   } else {
     n0 = gain * omega2;
     n1 = 2 * gain * omega2;
     n2 = gain * omega2;
     analog = "H(s) = K*ω0^2 / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
-    zNumerator = "K*w0^2*(1 + 2z^-1 + z^-2)";
   }
 
   return {
     coeffs: normalizeIir(n0, n1, n2, d0, d1, d2),
     omega,
-    analog,
-    zForm: `H(z) = ${zNumerator} / [D0 + D1*z^-1 + D2*z^-2]`
+    analog
   };
 }
 
@@ -1057,13 +1051,24 @@ function updateAnalyzeEquationNote(result) {
     note.textContent = "一阶低通：已识别为 H(z)=a/(1-(1-a)z^-1)，对应 y[n]=a*x[n]+(1-a)*y[n-1]，稳定条件是 |1-a|<1。";
     return;
   }
+  if (isTustinOnePoleLowpass(result)) {
+    note.textContent = "一阶低通：已识别为 Tustin 形式 H(z)=b0*(1+z^-1)/(1-a1*z^-1)，对应 y[n]=b0*x[n]+b0*x[n-1]+a1*y[n-1]。";
+    return;
+  }
   if (isOnePoleHighpass(result)) {
     note.textContent = "一阶高通：已识别为 H(z)=b0*(1-z^-1)/(1-a1*z^-1)，分子在 z=1 有零点，稳定条件是 |a1|<1。";
     return;
   }
+  const secondOrder = secondOrderZStructure(result);
+  if (secondOrder) {
+    note.textContent = secondOrder.matches
+      ? `${filterTypeLabel(result)}：已按所选标准结构识别，稳定条件是二阶极点都在单位圆内。`
+      : `${filterTypeLabel(result)}：当前系数不满足 ${secondOrder.pattern}，请先核对所选类型和系数。`;
+    return;
+  }
   note.textContent = result.order === 1
-    ? "一阶通用 IIR：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析，稳定条件是 |a1|<1。"
-    : "二阶 Biquad：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，时域为 -a1*y[n-1]-a2*y[n-2]。";
+    ? "当前一阶系数不能识别为标准低通或高通结构，请检查 b0、b1、a1 和所选类型。"
+    : "当前二阶系数不能识别为所选标准结构，请检查 b0、b1、b2 与低通/高通/带通/陷波类型是否匹配。";
 }
 
 function updateAnalyzeCoefficientLabels(result) {
@@ -1335,12 +1340,52 @@ function isOnePoleLowpass(result) {
     && coeffs.a1 < 1;
 }
 
+function isTustinOnePoleLowpass(result) {
+  const coeffs = result.coeffs;
+  return result.order === 1
+    && result.type === "lowpass"
+    && Math.abs(coeffs.b1 - coeffs.b0) < 1e-6
+    && Math.abs(coeffs.a1) < 1;
+}
+
 function isOnePoleHighpass(result) {
   const coeffs = result.coeffs;
   return result.order === 1
     && result.type === "highpass"
     && Math.abs(coeffs.b0 + coeffs.b1) < 1e-5
     && Math.abs(coeffs.a1) < 1;
+}
+
+function nearlyEqual(a, b, tolerance = 1e-5) {
+  return Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(a), Math.abs(b));
+}
+
+function secondOrderZStructure(result) {
+  if (result.order !== 2) return null;
+  const coeffs = result.coeffs;
+  const structures = {
+    lowpass: {
+      numerator: "b0(1 + 2z^-1 + z^-2)",
+      pattern: "b1=2b0, b2=b0",
+      matches: nearlyEqual(coeffs.b1, 2 * coeffs.b0) && nearlyEqual(coeffs.b2, coeffs.b0)
+    },
+    highpass: {
+      numerator: "b0(1 - 2z^-1 + z^-2)",
+      pattern: "b1=-2b0, b2=b0",
+      matches: nearlyEqual(coeffs.b1, -2 * coeffs.b0) && nearlyEqual(coeffs.b2, coeffs.b0)
+    },
+    bandpass: {
+      numerator: "b0(1 - z^-2)",
+      pattern: "b1=0, b2=-b0",
+      matches: nearlyEqual(coeffs.b1, 0) && nearlyEqual(coeffs.b2, -coeffs.b0)
+    },
+    notch: {
+      numerator: "b0(1 + z^-2) + b1z^-1",
+      pattern: "b2=b0",
+      matches: nearlyEqual(coeffs.b2, coeffs.b0)
+    }
+  };
+  return structures[result.type] || null;
 }
 
 function zFormulaParts(result) {
@@ -1353,6 +1398,14 @@ function zFormulaParts(result) {
       note: `识别为一阶低通：a = ${formatNumber(a, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
     };
   }
+  if (isTustinOnePoleLowpass(result)) {
+    return {
+      left: "H(z) =",
+      numerator: "b0(1 + z^-1)",
+      denominator: "1 - a1z^-1",
+      note: `识别为 Tustin 一阶低通：b0=b1=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
+    };
+  }
   if (isOnePoleHighpass(result)) {
     return {
       left: "H(z) =",
@@ -1363,17 +1416,28 @@ function zFormulaParts(result) {
   }
   if (result.order === 1) {
     return {
+      left: "未识别：",
+      numerator: "一阶系数",
+      denominator: "请按低通或高通标准结构核对",
+      note: `当前 b0=${formatNumber(result.coeffs.b0, 8)}，b1=${formatNumber(result.coeffs.b1, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}；未显示为标准传递函数。`
+    };
+  }
+  const secondOrder = secondOrderZStructure(result);
+  if (secondOrder) {
+    return {
       left: "H(z) =",
-      numerator: "b0 + b1z^-1",
-      denominator: "1 - a1z^-1",
-      note: `b0=${formatNumber(result.coeffs.b0, 8)}，b1=${formatNumber(result.coeffs.b1, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
+      numerator: secondOrder.numerator,
+      denominator: "1 + a1z^-1 + a2z^-2",
+      note: secondOrder.matches
+        ? `${filterTypeLabel(result)}：${secondOrder.pattern}，a=[1, ${formatNumber(result.coeffs.a1, 8)}, ${formatNumber(result.coeffs.a2, 8)}]。`
+        : `${filterTypeLabel(result)}：按所选类型展示标准结构，但当前系数不满足 ${secondOrder.pattern}，请核对输入。`
     };
   }
   return {
-    left: "H(z) =",
-    numerator: "b0 + b1z^-1 + b2z^-2",
-    denominator: "1 + a1z^-1 + a2z^-2",
-    note: `b=[${formatNumber(result.coeffs.b0, 8)}, ${formatNumber(result.coeffs.b1, 8)}, ${formatNumber(result.coeffs.b2, 8)}]，a=[1, ${formatNumber(result.coeffs.a1, 8)}, ${formatNumber(result.coeffs.a2, 8)}]。`
+    left: "未识别：",
+    numerator: "二阶系数",
+    denominator: "请按所选滤波器类型核对",
+    note: `当前 b=[${formatNumber(result.coeffs.b0, 8)}, ${formatNumber(result.coeffs.b1, 8)}, ${formatNumber(result.coeffs.b2, 8)}]，a=[1, ${formatNumber(result.coeffs.a1, 8)}, ${formatNumber(result.coeffs.a2, 8)}]。`
   };
 }
 
@@ -1483,6 +1547,14 @@ function zDerivationRows(result, coeffs) {
       { left: "1-a", right: formatNumber(coeffs.a1, 8) }
     ];
   }
+  if (isTustinOnePoleLowpass(result)) {
+    return [
+      { kind: "note", text: "识别为 Tustin 一阶低通结构，分子为 (1+z^-1)，因此 b0=b1。" },
+      { left: "H(z)", right: "b0(1+z^-1)/(1-a1z^-1)" },
+      { left: "b0=b1", right: formatNumber(coeffs.b0, 8) },
+      { left: "a1", right: formatNumber(coeffs.a1, 8) }
+    ];
+  }
   if (isOnePoleHighpass(result)) {
     return [
       { kind: "note", text: "识别为一阶高通结构，分子在 z=1 有零点，因此 DC 被抑制。" },
@@ -1494,15 +1566,28 @@ function zDerivationRows(result, coeffs) {
   }
   if (result.order === 1) {
     return [
-      { left: "H(z)", right: result.type === "highpass" ? "[K·m/(m+1)](1-z^-1) / [1-((m-1)/(m+1))z^-1]" : "[K/(m+1)](1+z^-1) / [1-((m-1)/(m+1))z^-1]" },
+      { kind: "note", text: "当前一阶系数未识别为低通或高通标准结构，这里只列出系数供核对。" },
       { left: "b0", right: formatNumber(coeffs.b0, 8) },
       { left: "b1", right: formatNumber(coeffs.b1, 8) },
       { left: "a1", right: formatNumber(coeffs.a1, 8) }
     ];
   }
+  const secondOrder = secondOrderZStructure(result);
+  if (secondOrder) {
+    return [
+      { kind: "note", text: secondOrder.matches ? `${filterTypeLabel(result)}结构已匹配。` : `${filterTypeLabel(result)}系数与标准结构不完全匹配，请优先核对 ${secondOrder.pattern}。` },
+      { left: "s", right: "2fs(1-z^-1)/(1+z^-1)" },
+      { left: "H(z)", right: `${secondOrder.numerator}/(1+a1z^-1+a2z^-2)` },
+      { left: "结构条件", right: secondOrder.pattern },
+      { left: "b0", right: formatNumber(coeffs.b0, 8) },
+      { left: "b1", right: formatNumber(coeffs.b1, 8) },
+      { left: "b2", right: formatNumber(coeffs.b2, 8) },
+      { left: "a1", right: formatNumber(coeffs.a1, 8) },
+      { left: "a2", right: formatNumber(coeffs.a2, 8) }
+    ];
+  }
   return [
-    { left: "s", right: "2fs(1-z^-1)/(1+z^-1)" },
-    { left: "H(z)", right: "(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2)" },
+    { kind: "note", text: "当前二阶系数未识别为低通、高通、带通或陷波标准结构，这里只列出系数供核对。" },
     { left: "b0", right: formatNumber(coeffs.b0, 8) },
     { left: "b1", right: formatNumber(coeffs.b1, 8) },
     { left: "b2", right: formatNumber(coeffs.b2, 8) },
@@ -1516,6 +1601,12 @@ function timeDomainRows(result, coeffs) {
     return [
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
       { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+    ];
+  }
+  if (isTustinOnePoleLowpass(result)) {
+    return [
+      { left: "y[n]", right: "b0·x[n] + b0·x[n-1] + a1·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.b0, 8)}·x[n-1] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
     ];
   }
   if (isOnePoleHighpass(result)) {
@@ -1547,98 +1638,69 @@ function analogEquivalentRows(result) {
   });
 }
 
+function zCoefficientSummary(result, coeffs) {
+  if (isOnePoleLowpass(result)) {
+    return [
+      "一阶低通：H(z) = a / (1 - (1-a)*z^-1)",
+      `a = ${formatNumber(coeffs.b0, 8)}`,
+      `1-a = ${formatNumber(coeffs.a1, 8)}`
+    ].join("\n");
+  }
+  if (isTustinOnePoleLowpass(result)) {
+    return [
+      "一阶低通：H(z) = b0*(1 + z^-1) / (1 - a1*z^-1)",
+      `b0 = b1 = ${formatNumber(coeffs.b0, 8)}`,
+      `a1 = ${formatNumber(coeffs.a1, 8)}`
+    ].join("\n");
+  }
+  if (isOnePoleHighpass(result)) {
+    return [
+      "一阶高通：H(z) = b0*(1 - z^-1) / (1 - a1*z^-1)",
+      `b0 = ${formatNumber(coeffs.b0, 8)}`,
+      `b1 = ${formatNumber(coeffs.b1, 8)} = -b0`,
+      `a1 = ${formatNumber(coeffs.a1, 8)}`
+    ].join("\n");
+  }
+  if (result.order === 1) {
+    return [
+      "未识别为标准一阶低通或高通结构，仅列系数：",
+      `b0 = ${formatNumber(coeffs.b0, 8)}`,
+      `b1 = ${formatNumber(coeffs.b1, 8)}`,
+      `a1 = ${formatNumber(coeffs.a1, 8)}`
+    ].join("\n");
+  }
+  const secondOrder = secondOrderZStructure(result);
+  if (secondOrder) {
+    return [
+      `${filterTypeLabel(result)}：H(z) = ${secondOrder.numerator} / (1 + a1*z^-1 + a2*z^-2)`,
+      `结构条件：${secondOrder.pattern}`,
+      `匹配结果：${secondOrder.matches ? "匹配" : "不完全匹配，请核对系数"}`,
+      `b0 = ${formatNumber(coeffs.b0, 8)}`,
+      `b1 = ${formatNumber(coeffs.b1, 8)}`,
+      `b2 = ${formatNumber(coeffs.b2, 8)}`,
+      `a1 = ${formatNumber(coeffs.a1, 8)}`,
+      `a2 = ${formatNumber(coeffs.a2, 8)}`
+    ].join("\n");
+  }
+  return [
+    "未识别为标准二阶低通、高通、带通或陷波结构，仅列系数：",
+    `b0 = ${formatNumber(coeffs.b0, 8)}`,
+    `b1 = ${formatNumber(coeffs.b1, 8)}`,
+    `b2 = ${formatNumber(coeffs.b2, 8)}`,
+    `a1 = ${formatNumber(coeffs.a1, 8)}`,
+    `a2 = ${formatNumber(coeffs.a2, 8)}`
+  ].join("\n");
+}
+
 function renderFilterDerivation(result, containerSelector = "#filter-design-derivation") {
   const container = document.querySelector(containerSelector);
   if (!container) return;
   container.innerHTML = "";
 
   const coeffs = result.coeffs;
-  const normalized = isOnePoleLowpass(result)
-    ? [
-        `H(z) = a / (1 - (1-a)*z^-1)`,
-        `a = ${formatNumber(coeffs.b0, 8)}`,
-        `1-a = ${formatNumber(coeffs.a1, 8)}`
-      ].join("\n")
-    : isOnePoleHighpass(result)
-    ? [
-        `H(z) = b0*(1 - z^-1) / (1 - a1*z^-1)`,
-        `b0 = ${formatNumber(coeffs.b0, 8)}`,
-        `b1 = ${formatNumber(coeffs.b1, 8)} = -b0`,
-        `a1 = ${formatNumber(coeffs.a1, 8)}`
-      ].join("\n")
-    : result.order === 1
-    ? [
-        `H(z) = (b0 + b1*z^-1) / (1 - a1*z^-1)`,
-        `b0 = ${formatNumber(coeffs.b0, 8)}`,
-        `b1 = ${formatNumber(coeffs.b1, 8)}`,
-        `a1 = ${formatNumber(coeffs.a1, 8)}`
-      ].join("\n")
-    : [
-        `H(z) = (b0 + b1*z^-1 + b2*z^-2) / (1 + a1*z^-1 + a2*z^-2)`,
-        `b0 = ${formatNumber(coeffs.b0, 8)}`,
-        `b1 = ${formatNumber(coeffs.b1, 8)}`,
-        `b2 = ${formatNumber(coeffs.b2, 8)}`,
-        `a1 = ${formatNumber(coeffs.a1, 8)}`,
-        `a2 = ${formatNumber(coeffs.a2, 8)}`
-      ].join("\n");
+  const normalized = zCoefficientSummary(result, coeffs);
 
   if (result.mode === "design" && result.design) {
-    const fs2 = 2 * result.sampleRate;
-    const prewarp = result.order === 1 && result.design.method === "matched"
-      ? [
-          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
-          `ωc = 2*pi*fc = ${formatNumber(result.design.omega, 6)} rad/s`,
-          `tau = 1/ωc = 1/(2*pi*fc) = ${formatNumber(result.design.tau, 10)} s`,
-          `Ts = 1/fs = ${formatNumber(1 / result.sampleRate, 10)} s`,
-          `alpha = exp(-Ts/tau) = exp(-2*pi*fc/fs) = ${formatNumber(result.design.alpha, 8)}`,
-          `a = 1 - alpha = ${formatNumber(coeffs.b0, 8)}`
-        ].join("\n")
-      : result.order === 1
-      ? [
-          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
-          `数字域目标角频率：wd = 2*pi*fc/fs`,
-          `Tustin 预畸变：wc = 2*fs*tan(wd/2) = ${formatNumber(result.design.omega, 6)} rad/s`,
-          `一阶时间常数：tau = 1/wc = ${formatNumber(result.design.tau, 10)} s`,
-          `双线性变换：s = (2/Ts)*(1 - z^-1)/(1 + z^-1),  Ts = 1/fs`,
-          `记 m = 2*fs*tau = ${formatNumber(result.design.firstOrderM, 8)}`
-        ].join("\n")
-      : [
-          `fc = ${formatNumber(result.frequency, 4)} Hz, fs = ${formatNumber(result.sampleRate, 4)} Hz`,
-          `w0 = 2*fs*tan(pi*fc/fs) = ${formatNumber(result.design.omega, 6)} rad/s`,
-          `s = 2*fs*(1 - z^-1)/(1 + z^-1) = ${formatNumber(fs2, 4)}*(1 - z^-1)/(1 + z^-1)`
-        ].join("\n");
-    const zDetail = result.order === 1 && result.design.method === "matched"
-      ? [
-          result.type === "highpass"
-            ? "高通保留同一个匹配极点 alpha，并在 z=1 放一个零点来压掉 DC。"
-            : "指数离散低通直接写成 y[n] = a*x[n] + (1-a)*y[n-1]。",
-          result.type === "highpass"
-            ? "为了让 Nyquist 端为目标增益 K，用系数 K*(1+alpha)/2 归一化。"
-            : "Z 变换：Y(z)=a*X(z)+(1-a)*z^-1*Y(z)。",
-          result.type === "highpass"
-            ? "Z 变换：H(z)=K*(1+alpha)/2*(1-z^-1)/(1-alpha*z^-1)。"
-            : "移项：Y(z)*(1-(1-a)*z^-1)=a*X(z)。",
-          result.type === "highpass"
-            ? "归一化后：b0 = K*(1+alpha)/2, b1 = -b0, a1 = alpha；分母仍按 1-a1*z^-1 理解。"
-            : "所以：H(z)=Y(z)/X(z)=a/(1-(1-a)*z^-1)。",
-          result.type === "lowpass"
-            ? "这里是一阶低通软件滤波器：只需要 a 和 1-a，不显示 b1/b2/a2。"
-            : "",
-          "",
-          normalized
-        ].join("\n")
-      : result.order === 1
-      ? [
-          result.design.zForm,
-          "",
-          result.type === "highpass"
-            ? "归一化后：b0 = K*m/(m+1), b1 = -K*m/(m+1), a1 = (m-1)/(m+1)"
-            : "归一化后：b0 = K/(m+1), b1 = K/(m+1), a1 = (m-1)/(m+1)",
-          "这里 a0 已归一化为 1，b2 = 0, a2 = 0。",
-          "",
-          normalized
-        ].join("\n")
-      : `${result.design.zForm}\n\n${normalized}`;
     const transformTitle = result.order === 1 && result.design.method === "matched"
       ? "2. 指数离散参数"
       : "2. 预畸变和双线性变换";
