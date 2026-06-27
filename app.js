@@ -687,8 +687,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
         method,
         analog:
           type === "highpass"
-            ? "H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
-            : "H(s) = 1 / (tau*s + 1),  tau = 1/ωc",
+            ? "H(s) = K·τs / (τs + 1),  τ = 1/ωc"
+            : "H(s) = 1 / (τs + 1),  τ = 1/ωc",
         zForm:
           type === "highpass"
             ? "H(z) = K*(1+alpha)/2*(1 - z^-1) / (1 - alpha*z^-1)"
@@ -710,8 +710,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
       firstOrderM: m,
       analog:
         type === "highpass"
-          ? "H(s) = K*tau*s / (tau*s + 1),  tau = 1/ωc"
-          : "H(s) = K / (tau*s + 1),  tau = 1/ωc",
+          ? "H(s) = K·τs / (τs + 1),  τ = 1/ωc"
+          : "H(s) = K / (τs + 1),  τ = 1/ωc",
       zForm:
         type === "highpass"
           ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
@@ -1159,6 +1159,136 @@ function createFormulaBlock(title, parts) {
   return block;
 }
 
+function createFormulaListBlock(title, rows) {
+  const block = document.createElement("article");
+  block.className = "formula-card formula-list-card";
+  const heading = document.createElement("h4");
+  heading.textContent = title;
+  const list = document.createElement("div");
+  list.className = "formula-list";
+  rows.forEach((row) => {
+    const item = document.createElement(row.kind === "note" ? "p" : "div");
+    if (row.kind === "note") {
+      item.className = "formula-note";
+      item.textContent = row.text;
+    } else {
+      item.className = "formula-equation";
+      const left = document.createElement("span");
+      left.className = "formula-equation-left";
+      left.textContent = row.left;
+      const right = document.createElement("span");
+      right.className = "formula-equation-right";
+      right.textContent = row.right;
+      item.append(left, right);
+    }
+    list.appendChild(item);
+  });
+  block.append(heading, list);
+  return block;
+}
+
+function transformParameterRows(result, coeffs) {
+  if (result.order === 1 && result.design.method === "matched") {
+    return [
+      { left: "fc", right: `${formatNumber(result.frequency, 4)} Hz` },
+      { left: "fs", right: `${formatNumber(result.sampleRate, 4)} Hz` },
+      { left: "ωc", right: `2πfc = ${formatNumber(result.design.omega, 6)} rad/s` },
+      { left: "τ", right: `1/ωc = ${formatNumber(result.design.tau, 10)} s` },
+      { left: "Ts", right: `1/fs = ${formatNumber(1 / result.sampleRate, 10)} s` },
+      { left: "α", right: `e^(-Ts/τ) = e^(-2πfc/fs) = ${formatNumber(result.design.alpha, 8)}` },
+      { left: "a", right: `1 - α = ${formatNumber(coeffs.b0, 8)}` }
+    ];
+  }
+  if (result.order === 1) {
+    return [
+      { left: "fc", right: `${formatNumber(result.frequency, 4)} Hz` },
+      { left: "fs", right: `${formatNumber(result.sampleRate, 4)} Hz` },
+      { left: "ωd", right: "2πfc/fs" },
+      { left: "ωc", right: `2fs·tan(ωd/2) = ${formatNumber(result.design.omega, 6)} rad/s` },
+      { left: "τ", right: `1/ωc = ${formatNumber(result.design.tau, 10)} s` },
+      { left: "s", right: "(2/Ts)(1 - z^-1)/(1 + z^-1)" },
+      { left: "m", right: `2fsτ = ${formatNumber(result.design.firstOrderM, 8)}` }
+    ];
+  }
+  return [
+    { left: "fc", right: `${formatNumber(result.frequency, 4)} Hz` },
+    { left: "fs", right: `${formatNumber(result.sampleRate, 4)} Hz` },
+    { left: "ω0", right: `2fs·tan(πfc/fs) = ${formatNumber(result.design.omega, 6)} rad/s` },
+    { left: "s", right: `${formatNumber(2 * result.sampleRate, 4)}·(1 - z^-1)/(1 + z^-1)` },
+    { left: "Q", right: formatNumber(result.q, 4) }
+  ];
+}
+
+function zDerivationRows(result, coeffs) {
+  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+    return [
+      { kind: "note", text: "指数离散低通直接写成时域递推式。" },
+      { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
+      { left: "Y(z)", right: "a·X(z) + (1-a)z^-1·Y(z)" },
+      { left: "Y(z)[1-(1-a)z^-1]", right: "a·X(z)" },
+      { left: "H(z)", right: "Y(z)/X(z) = a/[1-(1-a)z^-1]" },
+      { left: "a", right: formatNumber(coeffs.b0, 8) },
+      { left: "1-a", right: formatNumber(coeffs.a1, 8) }
+    ];
+  }
+  if (result.order === 1 && result.design?.method === "matched") {
+    return [
+      { kind: "note", text: "高通保留同一个匹配极点 α，并在 z=1 放零点压掉 DC。" },
+      { left: "H(z)", right: "K(1+α)(1-z^-1) / [2(1-αz^-1)]" },
+      { left: "b0", right: "K(1+α)/2" },
+      { left: "b1", right: "-b0" },
+      { left: "a1", right: "α" }
+    ];
+  }
+  if (result.order === 1) {
+    return [
+      { left: "H(z)", right: result.type === "highpass" ? "[K·m/(m+1)](1-z^-1) / [1-((m-1)/(m+1))z^-1]" : "[K/(m+1)](1+z^-1) / [1-((m-1)/(m+1))z^-1]" },
+      { left: "b0", right: formatNumber(coeffs.b0, 8) },
+      { left: "b1", right: formatNumber(coeffs.b1, 8) },
+      { left: "a1", right: formatNumber(coeffs.a1, 8) }
+    ];
+  }
+  return [
+    { left: "s", right: "2fs(1-z^-1)/(1+z^-1)" },
+    { left: "H(z)", right: "(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2)" },
+    { left: "b0", right: formatNumber(coeffs.b0, 8) },
+    { left: "b1", right: formatNumber(coeffs.b1, 8) },
+    { left: "b2", right: formatNumber(coeffs.b2, 8) },
+    { left: "a1", right: formatNumber(coeffs.a1, 8) },
+    { left: "a2", right: formatNumber(coeffs.a2, 8) }
+  ];
+}
+
+function timeDomainRows(result, coeffs) {
+  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+    return [
+      { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+    ];
+  }
+  if (result.order === 1) {
+    return [
+      { left: "y[n]", right: "b0·x[n] + b1·x[n-1] + a1·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.b1, 8)}·x[n-1] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+    ];
+  }
+  return [
+    { left: "y[n]", right: "b0·x[n] + b1·x[n-1] + b2·x[n-2] - a1·y[n-1] - a2·y[n-2]" },
+    { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.b1, 8)}·x[n-1] + ${formatNumber(coeffs.b2, 8)}·x[n-2] - (${formatNumber(coeffs.a1, 8)})·y[n-1] - (${formatNumber(coeffs.a2, 8)})·y[n-2]` }
+  ];
+}
+
+function analogEquivalentRows(result) {
+  return result.design.analog.split("\n").map((line) => {
+    const equalIndex = line.indexOf("=");
+    if (equalIndex <= 0) return { kind: "note", text: line };
+    return {
+      left: line.slice(0, equalIndex).trim(),
+      right: line.slice(equalIndex + 1).trim()
+    };
+  });
+}
+
 function renderFilterDerivation(result) {
   const container = document.querySelector("#filter-derivation");
   if (!container) return;
@@ -1266,11 +1396,11 @@ function renderFilterDerivation(result) {
       : "2. 预畸变和双线性变换";
     container.append(
       createFormulaBlock("1. 连续域 s 域原型", continuousFormulaParts(result)),
-      createDerivationBlock(transformTitle, prewarp),
+      createFormulaListBlock(transformTitle, transformParameterRows(result, coeffs)),
       createFormulaBlock("3. z 域传递函数", zFormulaParts(result)),
-      createDerivationBlock("4. z 域推导与归一化系数", zDetail),
-      createDerivationBlock("5. 时域差分方程", timeDomain),
-      createDerivationBlock("6. s 域等价写法", result.design.analog)
+      createFormulaListBlock("4. z 域推导与归一化系数", zDerivationRows(result, coeffs)),
+      createFormulaListBlock("5. 时域差分方程", timeDomainRows(result, coeffs)),
+      createFormulaListBlock("6. s 域等价写法", analogEquivalentRows(result))
     );
     return;
   }
@@ -1279,7 +1409,7 @@ function renderFilterDerivation(result) {
     createFormulaBlock("1. 已输入 z 域传递函数", zFormulaParts(result)),
     createDerivationBlock("2. z 域系数", normalized),
     createDerivationBlock("3. 频响分析代入", "令 z = exp(j*2*pi*f/fs)，扫描 f = 0 ... fs/2，得到幅值和相位曲线。"),
-    createDerivationBlock("4. 时域差分方程", timeDomain)
+    createFormulaListBlock("4. 时域差分方程", timeDomainRows(result, coeffs))
   );
 }
 
