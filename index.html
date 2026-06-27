@@ -119,8 +119,9 @@
                   </select>
                 </label>
                 <label>采样频率 fs (Hz)<input id="filter-design-sample-rate" type="number" value="10000" step="1"></label>
-                <label>截止 / 中心频率 fc (Hz)<input id="filter-design-frequency" type="number" value="1000" step="1"></label>
+                <label><span id="filter-design-frequency-label">截止 / 中心频率 fc (Hz)</span><input id="filter-design-frequency" type="number" value="1000" step="1"></label>
                 <label>品质因数 Q（二阶）<input id="filter-design-q" type="number" value="0.707" step="0.01"></label>
+                <label id="filter-design-bandwidth-wrap" class="hidden">带宽 BW (Hz)<input id="filter-design-bandwidth" type="number" value="1414.43" step="1"></label>
                 <label>通带增益 K (dB)<input id="filter-design-gain-db" type="number" value="0" step="0.5"></label>
                 <label>观察频率 (Hz)<input id="filter-design-probe-frequency" type="number" value="1000" step="1"></label>
               </div>

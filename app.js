@@ -15,7 +15,8 @@ const state = {
   favorites: new Set(loadJson(storageKeys.favorites, [])),
   notes: loadJson(storageKeys.notes, {}),
   globalNotes: localStorage.getItem(storageKeys.globalNotes) || "",
-  analyzeOrderLast: "2"
+  analyzeOrderLast: "2",
+  filterBandwidthSource: "q"
 };
 
 const elements = {
@@ -88,6 +89,7 @@ const elements = {
           sampleRate: document.querySelector("#filter-design-sample-rate"),
           frequency: document.querySelector("#filter-design-frequency"),
           q: document.querySelector("#filter-design-q"),
+          bandwidth: document.querySelector("#filter-design-bandwidth"),
           gainDb: document.querySelector("#filter-design-gain-db"),
           probeFrequency: document.querySelector("#filter-design-probe-frequency")
         },
@@ -804,6 +806,8 @@ function poleInfo(coeffs, order = 2) {
 function syncFilterTypeOptions() {
   const inputs = elements.calculators.filter.design.inputs;
   const order = Number(inputs.order.value);
+  const type = inputs.type.value;
+  const usesBandwidth = order === 2 && (type === "bandpass" || type === "notch");
   [...inputs.type.options].forEach((option) => {
     option.disabled = order === 1 && (option.value === "bandpass" || option.value === "notch");
   });
@@ -814,6 +818,29 @@ function syncFilterTypeOptions() {
   const onePoleLowpass = order === 1 && inputs.method.value === "matched" && inputs.type.value === "lowpass";
   inputs.gainDb.disabled = onePoleLowpass;
   if (onePoleLowpass) inputs.gainDb.value = 0;
+  const frequencyLabel = document.querySelector("#filter-design-frequency-label");
+  const bandwidthWrap = document.querySelector("#filter-design-bandwidth-wrap");
+  if (frequencyLabel) {
+    frequencyLabel.textContent = usesBandwidth ? "中心频率 f0 (Hz)" : "截止频率 fc (Hz)";
+  }
+  bandwidthWrap?.classList.toggle("hidden", !usesBandwidth);
+  syncFilterBandwidthFields(usesBandwidth);
+}
+
+function syncFilterBandwidthFields(enabled) {
+  if (!enabled) {
+    state.filterBandwidthSource = "q";
+    return;
+  }
+  const inputs = elements.calculators.filter.design.inputs;
+  const f0 = Math.max(toNumber(inputs.frequency), 0.001);
+  const q = Math.max(toNumber(inputs.q), 0.001);
+  const bandwidth = Math.max(toNumber(inputs.bandwidth), 0.001);
+  if (state.filterBandwidthSource === "bandwidth") {
+    inputs.q.value = formatNumber(f0 / bandwidth, 4);
+  } else {
+    inputs.bandwidth.value = formatNumber(f0 / q, 4);
+  }
 }
 
 function syncAnalyzeFilterOptions() {
@@ -889,6 +916,7 @@ function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, ga
     nyquist,
     frequency,
     q,
+    bandwidth: type === "bandpass" || type === "notch" ? frequency / Math.max(q, 0.001) : NaN,
     gainDb,
     design,
     probeFrequency,
@@ -1335,7 +1363,7 @@ function transformParameterRows(result, coeffs) {
       { left: "m", right: `2fsτ = ${formatNumber(result.design.firstOrderM, 8)}` }
     ];
   }
-  return [
+  const rows = [
     { left: "fc", right: `${formatNumber(result.frequency, 4)} Hz` },
     { left: "fs", right: `${formatNumber(result.sampleRate, 4)} Hz` },
     { left: "ω0", right: `2fs·tan(πfc/fs) = ${formatNumber(result.design.omega, 6)} rad/s` },
@@ -1343,6 +1371,14 @@ function transformParameterRows(result, coeffs) {
     { left: "Q", right: formatNumber(result.q, 4) },
     { left: "ξ", right: `1/(2Q) = ${formatNumber(1 / (2 * result.q), 6)}` }
   ];
+  if (result.type === "bandpass" || result.type === "notch") {
+    const bandwidth = result.frequency / Math.max(result.q, 0.001);
+    rows.splice(2, 0,
+      { left: "BW", right: `f0/Q = ${formatNumber(bandwidth, 4)} Hz` },
+      { left: "f1/f2", right: `${formatNumber(Math.max(result.frequency - bandwidth / 2, 0), 4)} Hz / ${formatNumber(result.frequency + bandwidth / 2, 4)} Hz` }
+    );
+  }
+  return rows;
 }
 
 function zDerivationRows(result, coeffs) {
@@ -1537,10 +1573,14 @@ function renderFilterDerivation(result, containerSelector = "#filter-design-deri
 
 function computeFilter() {
   const designed = computeDesignedFilterValues();
+  const designCutoffLabel = designed.type === "bandpass" || designed.type === "notch" ? "中心频率 / 带宽" : "-3 dB 截止估计";
+  const designCutoffValue = designed.type === "bandpass" || designed.type === "notch"
+    ? `${formatNumber(designed.frequency, 2)} Hz / ${formatNumber(designed.bandwidth, 2)} Hz`
+    : `${formatNumber(designed.cutoffFrequency, 2)} Hz`;
   renderResultCards(elements.calculators.filter.design.output, [
     { label: "输出", value: "新滤波器系数" },
     { label: "滤波器类型", value: filterTypeLabel(designed) },
-    { label: "-3 dB 截止估计", value: `${formatNumber(designed.cutoffFrequency, 2)} Hz` },
+    { label: designCutoffLabel, value: designCutoffValue },
     { label: "DC 增益", value: `${formatNumber(designed.dcGainDb, 2)} dB` },
     { label: "Nyquist 增益", value: `${formatNumber(designed.nyquistGainDb, 2)} dB` },
     { label: "稳定性", value: designed.stable ? "稳定" : "不稳定" }
@@ -1648,6 +1688,8 @@ elements.exportTools.addEventListener("click", exportTools);
 elements.importTools.addEventListener("change", handleImport);
 document.querySelector("#show-filter-design")?.addEventListener("click", () => setFilterToolView("design"));
 document.querySelector("#show-filter-analyze")?.addEventListener("click", () => setFilterToolView("analyze"));
+document.querySelector("#filter-design-q")?.addEventListener("input", () => { state.filterBandwidthSource = "q"; });
+document.querySelector("#filter-design-bandwidth")?.addEventListener("input", () => { state.filterBandwidthSource = "bandwidth"; });
 elements.toolForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(elements.toolForm);
