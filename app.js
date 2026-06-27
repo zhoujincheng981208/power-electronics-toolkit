@@ -823,6 +823,12 @@ function syncAnalyzeFilterOptions() {
     setAnalyzeExampleCoefficients(order);
     state.analyzeOrderLast = String(order);
   }
+  [...inputs.type.options].forEach((option) => {
+    option.disabled = order === 1 && (option.value === "bandpass" || option.value === "notch");
+  });
+  if (order === 1 && (inputs.type.value === "bandpass" || inputs.type.value === "notch")) {
+    inputs.type.value = "lowpass";
+  }
   document.querySelectorAll(".analyze-second-order-coeff").forEach((node) => {
     node.classList.toggle("hidden", order === 1);
   });
@@ -1165,13 +1171,41 @@ function continuousFormulaParts(result) {
   };
 }
 
+function isOnePoleLowpass(result) {
+  const coeffs = result.coeffs;
+  return result.order === 1
+    && result.type === "lowpass"
+    && Math.abs(coeffs.b1) < 1e-9
+    && Math.abs(coeffs.b0 + coeffs.a1 - 1) < 1e-5
+    && coeffs.b0 >= 0
+    && coeffs.a1 > -1
+    && coeffs.a1 < 1;
+}
+
+function isOnePoleHighpass(result) {
+  const coeffs = result.coeffs;
+  return result.order === 1
+    && result.type === "highpass"
+    && Math.abs(coeffs.b0 + coeffs.b1) < 1e-5
+    && Math.abs(coeffs.a1) < 1;
+}
+
 function zFormulaParts(result) {
-  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+  if (isOnePoleLowpass(result)) {
+    const a = result.coeffs.b0;
     return {
       left: "H(z) =",
       numerator: "a",
       denominator: "1 - (1-a)z^-1",
-      note: `a = ${formatNumber(result.coeffs.b0, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
+      note: `识别为一阶低通：a = ${formatNumber(a, 8)}，1-a = ${formatNumber(result.coeffs.a1, 8)}。`
+    };
+  }
+  if (isOnePoleHighpass(result)) {
+    return {
+      left: "H(z) =",
+      numerator: "b0(1 - z^-1)",
+      denominator: "1 - a1z^-1",
+      note: `识别为一阶高通：b0=${formatNumber(result.coeffs.b0, 8)}，a1=${formatNumber(result.coeffs.a1, 8)}。`
     };
   }
   if (result.order === 1) {
@@ -1277,9 +1311,9 @@ function transformParameterRows(result, coeffs) {
 }
 
 function zDerivationRows(result, coeffs) {
-  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+  if (isOnePoleLowpass(result)) {
     return [
-      { kind: "note", text: "指数离散低通直接写成时域递推式。" },
+      { kind: "note", text: "识别为一阶低通结构，按参考原型的一阶低通递推式查看。" },
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
       { left: "Y(z)", right: "a·X(z) + (1-a)z^-1·Y(z)" },
       { left: "Y(z)[1-(1-a)z^-1]", right: "a·X(z)" },
@@ -1288,13 +1322,13 @@ function zDerivationRows(result, coeffs) {
       { left: "1-a", right: formatNumber(coeffs.a1, 8) }
     ];
   }
-  if (result.order === 1 && result.design?.method === "matched") {
+  if (isOnePoleHighpass(result)) {
     return [
-      { kind: "note", text: "高通保留同一个匹配极点 α，并在 z=1 放零点压掉 DC。" },
-      { left: "H(z)", right: "K(1+α)(1-z^-1) / [2(1-αz^-1)]" },
-      { left: "b0", right: "K(1+α)/2" },
+      { kind: "note", text: "识别为一阶高通结构，分子在 z=1 有零点，因此 DC 被抑制。" },
+      { left: "H(z)", right: "b0(1-z^-1)/(1-a1z^-1)" },
+      { left: "b0", right: formatNumber(coeffs.b0, 8) },
       { left: "b1", right: "-b0" },
-      { left: "a1", right: "α" }
+      { left: "a1", right: formatNumber(coeffs.a1, 8) }
     ];
   }
   if (result.order === 1) {
@@ -1317,10 +1351,16 @@ function zDerivationRows(result, coeffs) {
 }
 
 function timeDomainRows(result, coeffs) {
-  if (result.order === 1 && result.design?.method === "matched" && result.type === "lowpass") {
+  if (isOnePoleLowpass(result)) {
     return [
       { left: "y[n]", right: "a·x[n] + (1-a)·y[n-1]" },
       { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
+    ];
+  }
+  if (isOnePoleHighpass(result)) {
+    return [
+      { left: "y[n]", right: "b0·x[n] - b0·x[n-1] + a1·y[n-1]" },
+      { left: "y[n]", right: `${formatNumber(coeffs.b0, 8)}·x[n] - ${formatNumber(coeffs.b0, 8)}·x[n-1] + ${formatNumber(coeffs.a1, 8)}·y[n-1]` }
     ];
   }
   if (result.order === 1) {
@@ -1352,12 +1392,18 @@ function renderFilterDerivation(result, containerSelector = "#filter-design-deri
   container.innerHTML = "";
 
   const coeffs = result.coeffs;
-  const onePoleLowpass = result.order === 1 && result.design?.method === "matched" && result.type === "lowpass";
-  const normalized = onePoleLowpass
+  const normalized = isOnePoleLowpass(result)
     ? [
         `H(z) = a / (1 - (1-a)*z^-1)`,
         `a = ${formatNumber(coeffs.b0, 8)}`,
         `1-a = ${formatNumber(coeffs.a1, 8)}`
+      ].join("\n")
+    : isOnePoleHighpass(result)
+    ? [
+        `H(z) = b0*(1 - z^-1) / (1 - a1*z^-1)`,
+        `b0 = ${formatNumber(coeffs.b0, 8)}`,
+        `b1 = ${formatNumber(coeffs.b1, 8)} = -b0`,
+        `a1 = ${formatNumber(coeffs.a1, 8)}`
       ].join("\n")
     : result.order === 1
     ? [
@@ -1373,22 +1419,6 @@ function renderFilterDerivation(result, containerSelector = "#filter-design-deri
         `b2 = ${formatNumber(coeffs.b2, 8)}`,
         `a1 = ${formatNumber(coeffs.a1, 8)}`,
         `a2 = ${formatNumber(coeffs.a2, 8)}`
-      ].join("\n");
-
-  const timeDomain = onePoleLowpass
-    ? [
-        "y[n] = a*x[n] + (1-a)*y[n-1]",
-        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.a1, 8)}*y[n-1]`
-      ].join("\n")
-    : result.order === 1
-    ? [
-        "y[n] = b0*x[n] + b1*x[n-1] + a1*y[n-1]",
-        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.a1, 8)}*y[n-1]`
-      ].join("\n")
-    : [
-        "y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]",
-        `y[n] = ${formatNumber(coeffs.b0, 8)}*x[n] + ${formatNumber(coeffs.b1, 8)}*x[n-1] + ${formatNumber(coeffs.b2, 8)}*x[n-2]`,
-        `       - (${formatNumber(coeffs.a1, 8)})*y[n-1] - (${formatNumber(coeffs.a2, 8)})*y[n-2]`
       ].join("\n");
 
   if (result.mode === "design" && result.design) {
