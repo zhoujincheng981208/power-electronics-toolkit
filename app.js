@@ -14,7 +14,8 @@ const state = {
   customTools: loadJson(storageKeys.customTools, []),
   favorites: new Set(loadJson(storageKeys.favorites, [])),
   notes: loadJson(storageKeys.notes, {}),
-  globalNotes: localStorage.getItem(storageKeys.globalNotes) || ""
+  globalNotes: localStorage.getItem(storageKeys.globalNotes) || "",
+  analyzeOrderLast: "2"
 };
 
 const elements = {
@@ -696,8 +697,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
         method,
         analog:
           type === "highpass"
-            ? "H(s) = K·τs / (τs + 1),  τ = 1/ωc"
-            : "H(s) = 1 / (τs + 1),  τ = 1/ωc",
+            ? "H(s) = K·s / (s + ω0)"
+            : "H(s) = ω0 / (s + ω0)",
         zForm:
           type === "highpass"
             ? "H(z) = K*(1+alpha)/2*(1 - z^-1) / (1 - alpha*z^-1)"
@@ -719,8 +720,8 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
       firstOrderM: m,
       analog:
         type === "highpass"
-          ? "H(s) = K·τs / (τs + 1),  τ = 1/ωc"
-          : "H(s) = K / (τs + 1),  τ = 1/ωc",
+          ? "H(s) = K·s / (s + ω0)"
+          : "H(s) = K·ω0 / (s + ω0)",
       zForm:
         type === "highpass"
           ? "H(z) = [K*m/(m+1)]*(1 - z^-1) / [1 - ((m-1)/(m+1))z^-1],  m = 2fs*tau"
@@ -744,25 +745,25 @@ function designDigitalFilter({ order, type, sampleRate, frequency, q, gainDb, me
     n0 = gain * c2;
     n1 = -2 * gain * c2;
     n2 = gain * c2;
-    analog = "H(s) = K*s^2 / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*s^2 / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
     zNumerator = "K*(2fs)^2*(1 - 2z^-1 + z^-2)";
   } else if (type === "bandpass") {
     n0 = gain * damping * c;
     n1 = 0;
     n2 = -gain * damping * c;
-    analog = "H(s) = K*(ω0/Q)s / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*2ξω0s / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
     zNumerator = "K*(w0/Q)*2fs*(1 - z^-2)";
   } else if (type === "notch") {
     n0 = gain * (c2 + omega2);
     n1 = gain * (-2 * c2 + 2 * omega2);
     n2 = gain * (c2 + omega2);
-    analog = "H(s) = K*(s^2 + ω0^2) / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*(s^2 + ω0^2) / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
     zNumerator = "K*[(2fs)^2(1 - 2z^-1 + z^-2) + w0^2(1 + 2z^-1 + z^-2)]";
   } else {
     n0 = gain * omega2;
     n1 = 2 * gain * omega2;
     n2 = gain * omega2;
-    analog = "H(s) = K*ω0^2 / (s^2 + (ω0/Q)s + ω0^2)";
+    analog = "H(s) = K*ω0^2 / (s^2 + 2ξω0s + ω0^2),  ξ = 1/(2Q)";
     zNumerator = "K*w0^2*(1 + 2z^-1 + z^-2)";
   }
 
@@ -818,6 +819,10 @@ function syncFilterTypeOptions() {
 function syncAnalyzeFilterOptions() {
   const inputs = elements.calculators.filter.analyze.inputs;
   const order = Number(inputs.order.value);
+  if (String(order) !== state.analyzeOrderLast) {
+    setAnalyzeExampleCoefficients(order);
+    state.analyzeOrderLast = String(order);
+  }
   document.querySelectorAll(".analyze-second-order-coeff").forEach((node) => {
     node.classList.toggle("hidden", order === 1);
   });
@@ -826,9 +831,29 @@ function syncAnalyzeFilterOptions() {
   const note = document.querySelector("#filter-analyze-equation-note");
   if (note) {
     note.textContent = order === 1
-      ? "一阶查看：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析，因此时域为 +a1*y[n-1]。"
+      ? "一阶查看：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析。低通常见形式是 b0=a, b1=0, a1=1-a，稳定条件是 |a1|<1。"
       : "二阶查看：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，因此时域为 -a1*y[n-1]-a2*y[n-2]。";
   }
+}
+
+function setAnalyzeExampleCoefficients(order) {
+  const inputs = elements.calculators.filter.analyze.inputs;
+  if (order === 1) {
+    const alpha = Math.exp(-2 * Math.PI * 1000 / 10000);
+    inputs.type.value = "lowpass";
+    inputs.b0.value = formatNumber(1 - alpha, 8);
+    inputs.b1.value = "0.00000000";
+    inputs.b2.value = "0.00000000";
+    inputs.a1.value = formatNumber(alpha, 8);
+    inputs.a2.value = "0.00000000";
+    return;
+  }
+  inputs.type.value = "lowpass";
+  inputs.b0.value = "0.06745228";
+  inputs.b1.value = "0.13490457";
+  inputs.b2.value = "0.06745228";
+  inputs.a1.value = "-1.14292982";
+  inputs.a2.value = "0.41273895";
 }
 
 function analyzeFilterResponse({ mode, order, type, sampleRate, frequency, q, gainDb, design, probeFrequency, coeffs }) {
@@ -1094,34 +1119,34 @@ function continuousFormulaParts(result) {
   if (result.order === 1 && result.type === "highpass") {
     return {
       left: "H(s) =",
-      numerator: `${gain}τs`,
-      denominator: "τs + 1",
-      note: "一阶高通 s 域原型，τ = 1/ωc。离散时在 z=1 放零点压掉 DC，并把 Nyquist 端归一化到通带增益。"
+      numerator: `${gain}s`,
+      denominator: "s + ω0",
+      note: "一阶高通 s 域原型，ω0 = 2πfc。离散时在 z=1 放零点压掉 DC，并把 Nyquist 端归一化到通带增益。"
     };
   }
   if (result.order === 1) {
     return {
       left: "H(s) =",
-      numerator: result.gainDb === 0 ? "1" : "K",
-      denominator: "τs + 1",
-      note: "一阶低通 s 域原型，τ = 1/ωc。代入 s=jω 后，ω=ωc 处幅值为通带的 -3 dB。"
+      numerator: result.gainDb === 0 ? "ω0" : "K·ω0",
+      denominator: "s + ω0",
+      note: "一阶低通 s 域原型，ω0 = 2πfc。它等价于 1/(τs+1)，其中 τ=1/ω0。"
     };
   }
-  const commonDenominator = "s^2 + (ω0/Q)s + ω0^2";
+  const commonDenominator = "s^2 + 2ξω0s + ω0^2";
   if (result.type === "highpass") {
     return {
       left: "H(s) =",
       numerator: `${gain}s^2`,
       denominator: commonDenominator,
-      note: "二阶高通标准型，ω0 = 2πfc，Q 控制拐点附近峰值和相位变化。"
+      note: "二阶高通标准型，ω0 = 2πfc，ξ=1/(2Q)。"
     };
   }
   if (result.type === "bandpass") {
     return {
       left: "H(s) =",
-      numerator: `${gain}(ω0/Q)s`,
+      numerator: `${gain}2ξω0s`,
       denominator: commonDenominator,
-      note: "二阶带通标准型，ω0 为中心角频率，Q 越高带宽越窄。"
+      note: "二阶带通标准型，ω0 为中心角频率，ξ=1/(2Q)，Q 越高带宽越窄。"
     };
   }
   if (result.type === "notch") {
@@ -1129,14 +1154,14 @@ function continuousFormulaParts(result) {
       left: "H(s) =",
       numerator: `${gain}(s^2 + ω0^2)`,
       denominator: commonDenominator,
-      note: "二阶陷波标准型，ω0 附近形成陷波，Q 越高陷波越窄。"
+      note: "二阶陷波标准型，ω0 附近形成陷波，ξ=1/(2Q)。"
     };
   }
   return {
     left: "H(s) =",
     numerator: `${gain}ω0^2`,
     denominator: commonDenominator,
-    note: "二阶低通标准型，ω0 = 2πfc，Q 控制阻尼和截止附近峰值。"
+    note: "二阶低通标准型，ω0 = 2πfc，ξ=1/(2Q)。"
   };
 }
 
@@ -1246,7 +1271,8 @@ function transformParameterRows(result, coeffs) {
     { left: "fs", right: `${formatNumber(result.sampleRate, 4)} Hz` },
     { left: "ω0", right: `2fs·tan(πfc/fs) = ${formatNumber(result.design.omega, 6)} rad/s` },
     { left: "s", right: `${formatNumber(2 * result.sampleRate, 4)}·(1 - z^-1)/(1 + z^-1)` },
-    { left: "Q", right: formatNumber(result.q, 4) }
+    { left: "Q", right: formatNumber(result.q, 4) },
+    { left: "ξ", right: `1/(2Q) = ${formatNumber(1 / (2 * result.q), 6)}` }
   ];
 }
 
