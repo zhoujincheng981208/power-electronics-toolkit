@@ -832,8 +832,6 @@ function syncAnalyzeFilterOptions() {
   document.querySelectorAll(".analyze-second-order-coeff").forEach((node) => {
     node.classList.toggle("hidden", order === 1);
   });
-  const b1Wrap = document.querySelector("#filter-analyze-b1-wrap");
-  if (b1Wrap) b1Wrap.classList.toggle("hidden", false);
 }
 
 function setAnalyzeExampleCoefficients(order) {
@@ -967,6 +965,7 @@ function computeAnalyzedFilterValues() {
     coeffs
   });
   updateAnalyzeEquationNote(result);
+  updateAnalyzeCoefficientLabels(result);
   return result;
 }
 
@@ -984,6 +983,30 @@ function updateAnalyzeEquationNote(result) {
   note.textContent = result.order === 1
     ? "一阶通用 IIR：按 H(z)=(b0+b1z^-1)/(1-a1z^-1) 分析，稳定条件是 |a1|<1。"
     : "二阶 Biquad：按 H(z)=(b0+b1z^-1+b2z^-2)/(1+a1z^-1+a2z^-2) 分析，时域为 -a1*y[n-1]-a2*y[n-2]。";
+}
+
+function updateAnalyzeCoefficientLabels(result) {
+  const b0Label = document.querySelector("#filter-analyze-b0-label");
+  const b1Label = document.querySelector("#filter-analyze-b1-label");
+  const a1Label = document.querySelector("#filter-analyze-a1-label");
+  const b1Wrap = document.querySelector("#filter-analyze-b1-wrap");
+  if (isOnePoleLowpass(result)) {
+    if (b0Label) b0Label.textContent = "a";
+    if (a1Label) a1Label.textContent = "1-a";
+    if (b1Wrap) b1Wrap.classList.add("hidden");
+    return;
+  }
+  if (isOnePoleHighpass(result)) {
+    if (b0Label) b0Label.textContent = "b0";
+    if (b1Label) b1Label.textContent = "b1 = -b0";
+    if (a1Label) a1Label.textContent = "a1 / 极点";
+    if (b1Wrap) b1Wrap.classList.remove("hidden");
+    return;
+  }
+  if (b0Label) b0Label.textContent = "b0";
+  if (b1Label) b1Label.textContent = "b1";
+  if (a1Label) a1Label.textContent = result.order === 1 ? "a1 / 反馈项" : "a1";
+  if (b1Wrap) b1Wrap.classList.remove("hidden");
 }
 
 function filterTypeLabel(result) {
