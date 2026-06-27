@@ -135,8 +135,12 @@
             <h3>软件数字滤波器工具</h3>
             <span>一个用于设计新滤波器，一个用于查看已有滤波器参数</span>
           </div>
+          <div class="filter-tool-switch" role="tablist" aria-label="滤波器工具选择">
+            <button id="show-filter-design" class="filter-tool-tab active" type="button" aria-controls="filter-design-tool" aria-selected="true">设计滤波器</button>
+            <button id="show-filter-analyze" class="filter-tool-tab" type="button" aria-controls="filter-analyze-tool" aria-selected="false">查看已有滤波器参数</button>
+          </div>
           <div class="filter-workbench">
-            <section class="filter-subtool">
+            <section id="filter-design-tool" class="filter-subtool">
               <div class="subtool-head">
                 <div>
                   <p class="eyebrow">Designer</p>
@@ -177,7 +181,7 @@
               <div id="filter-design-checks" class="check-list"></div>
             </section>
 
-            <section class="filter-subtool">
+            <section id="filter-analyze-tool" class="filter-subtool hidden">
               <div class="subtool-head">
                 <div>
                   <p class="eyebrow">Inspector</p>

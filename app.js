@@ -1472,6 +1472,20 @@ function computeFilter() {
   renderChecks("#filter-analyze-checks", filterStatusItems(analyzed));
 }
 
+function setFilterToolView(view) {
+  const designTool = document.querySelector("#filter-design-tool");
+  const analyzeTool = document.querySelector("#filter-analyze-tool");
+  const designTab = document.querySelector("#show-filter-design");
+  const analyzeTab = document.querySelector("#show-filter-analyze");
+  const showAnalyze = view === "analyze";
+  designTool?.classList.toggle("hidden", showAnalyze);
+  analyzeTool?.classList.toggle("hidden", !showAnalyze);
+  designTab?.classList.toggle("active", !showAnalyze);
+  analyzeTab?.classList.toggle("active", showAnalyze);
+  designTab?.setAttribute("aria-selected", String(!showAnalyze));
+  analyzeTab?.setAttribute("aria-selected", String(showAnalyze));
+}
+
 function initEnhancedLclControls() {
   const resetButton = document.querySelector("#lcl-reset");
   if (resetButton) {
@@ -1541,6 +1555,8 @@ elements.cancelDialog.addEventListener("click", closeDialog);
 elements.closeDialog.addEventListener("click", closeDialog);
 elements.exportTools.addEventListener("click", exportTools);
 elements.importTools.addEventListener("change", handleImport);
+document.querySelector("#show-filter-design")?.addEventListener("click", () => setFilterToolView("design"));
+document.querySelector("#show-filter-analyze")?.addEventListener("click", () => setFilterToolView("analyze"));
 elements.toolForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const formData = new FormData(elements.toolForm);
@@ -1562,3 +1578,4 @@ elements.toolForm.addEventListener("submit", (event) => {
 render();
 initEnhancedLclControls();
 initCalculators();
+setFilterToolView("design");
