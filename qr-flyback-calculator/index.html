@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR 反激满载频率计算器</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:20px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:92px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8}
+  .full{grid-column:1/-1}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .concl{padding:14px 16px;font-size:15px;font-weight:700}
+  .concl.PASS{color:var(--pass)} .concl.FAIL{color:var(--fail)}
+  .note{color:var(--sub);font-size:12px;padding:10px 16px 14px;line-height:1.7}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .bigres{text-align:center;padding:14px}
+  .bigres .num{font-size:34px;font-weight:700;color:var(--acc);font-family:Consolas,monospace}
+  .bigres .lbl{font-size:12px;color:var(--sub)}
+  .small{font-size:11px;color:var(--sub)}
+  .warn{color:var(--fail);font-weight:600}
+  .sugg{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;
+    font-size:12px;color:#7c5a06;margin-top:14px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>QR 反激满载开关频率计算器</h1>
+  <div class="sub">准谐振 / DCM：储能全部转移 → 电流过零后 Lm·Cr 谐振 → 第一谷底开通　·　逐次逼近求自洽频率 Fs</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动 PASS / FAIL）</span>
+  </div>
+  <div class="bar">
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="small" id="hint"></span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="card in">
+        <h2>输入区 · 工况与器件参数</h2>
+        <table><tbody id="tbIn"></tbody></table>
+      </div>
+      <div class="card chk" style="margin-top:20px">
+        <h2>校核区 · 自动判定</h2>
+        <table><tbody id="tbChk"></tbody></table>
+        <div id="concl" class="concl"></div>
+        <div id="sugg" class="sugg"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card calc">
+        <h2>结果区 · 收敛值（自洽解）</h2>
+        <div class="bigres"><div class="num" id="bigF">—</div><div class="lbl">收敛开关频率 Fs (kHz)</div></div>
+        <table><tbody id="tbRes"></tbody></table>
+      </div>
+      <div class="card calc" style="margin-top:20px">
+        <h2>逐次逼近迭代过程</h2>
+        <table>
+          <thead><tr><th>#</th><th>F猜 (kHz)</th><th>Ipk (A)</th><th>Ton (μs)</th><th>Treset (μs)</th><th>Ts (μs)</th><th>F算 (kHz)</th><th>误差</th></tr></thead>
+          <tbody id="tbIter"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <details open>
+    <summary>计算方法与工程依据（点击展开 / 收起）</summary>
+    <div id="method"></div>
+  </details>
+</div>
+
+<!-- ============ 纯计算内核（与 calc_core.py 逐项一致，verify_web.js 抽取此处校验） ============ -->
+<script id="core">
+function solveQR(p, maxIter){
+  maxIter = maxIter || 50;
+  var Vin=p.Vin_max, Vo=p.Vo, Vd=p.Vd, n=p.n, Po=p.Po, eta=p.eta;
+  var Lm=p.Lm_uh*1e-6, Cr=p.Cr_pf*1e-12, tw=p.twin_us*1e-6;
+  var F0=p.F0_khz*1e3, tol=p.tol_pct/100, Vdss=p.Vdss;
+
+  var Vor = n*(Vo+Vd);
+  var sqrt_lcr = Math.sqrt(Lm*Cr);
+  var Tres = Math.PI*sqrt_lcr + tw;
+  var coef = Math.sqrt(2*Po/(eta*Lm));
+
+  var hist=[], F=F0, k, Ipk, Ton, Treset, Ts, Fcalc, err, last;
+  for(k=1;k<=maxIter;k++){
+    Ipk    = coef/Math.sqrt(F);
+    Ton    = Lm*Ipk/Vin;
+    Treset = Lm*Ipk/Vor;
+    Ts     = Ton + Treset + Tres;
+    Fcalc  = 1/Ts;
+    err    = (Fcalc-F)/F;
+    hist.push({it:k, Fg:F, Ipk:Ipk, Ton:Ton, Treset:Treset, Tres:Tres, Ts:Ts, Fc:Fcalc, err:err});
+    if(Math.abs(err)<tol) break;
+    F = Fcalc;
+  }
+  last = hist[hist.length-1];
+  var Fsol = last.Fc;
+  var converged = Math.abs(last.err)<tol;
+
+  var A = Lm*(1/Vin + 1/Vor)*coef;
+  var B = Tres;
+  var x = (-A + Math.sqrt(A*A + 4*B))/(2*B);
+  var Fana = x*x;
+
+  var Ipk_s = coef/Math.sqrt(Fsol);
+  var Ton_s = Lm*Ipk_s/Vin;
+  var Treset_s = Lm*Ipk_s/Vor;
+  var Ts_s = Ton_s + Treset_s + Tres;
+  var duty = Ton_s/Ts_s;
+  var Vvalley = Vin - Vor;
+  var Vstress = Vin + Vor;
+
+  var checks = {
+    '迭代收敛':   [converged,                '末次相对误差 '+(last.err*100).toFixed(3)+'% < '+(tol*100).toFixed(1)+'%'],
+    '电压应力':   [Vstress <= 0.8*Vdss,      Vstress.toFixed(0)+' V ≤ 0.8×'+Vdss.toFixed(0)+'V = '+(0.8*Vdss).toFixed(0)+' V'],
+    '谷底电压为正': [Vvalley > 0,              Vvalley.toFixed(1)+' V > 0 V'],
+    '占空比<0.5': [duty < 0.5,                'D='+(duty*100).toFixed(1)+'% < 50%'],
+  };
+  return {Vor:Vor, sqrt_lcr:sqrt_lcr, Tres:Tres, coef:coef, A:A, B:B,
+    Fana:Fana, Fsol:Fsol, iters:hist.length, converged:converged,
+    Ipk:Ipk_s, Ton:Ton_s, Treset:Treset_s, Ts:Ts_s,
+    duty:duty, Vvalley:Vvalley, Vstress:Vstress, hist:hist, checks:checks};
+}
+var DEMO = {Vin_max:600, Vo:13, Vd:0.7, n:6, Po:42.9, eta:0.88,
+  Lm_uh:250, Cr_pf:120, twin_us:0, F0_khz:150, tol_pct:1, Vdss:800};
+</script>
+
+<script>
+var FIELDS = [
+  ['Vin_max','母线最大电压 Vin,max','V',600,'输入母线电压，最坏工况取最大值'],
+  ['Vo','输出电压 Vo','V',13,'额定输出电压'],
+  ['Vd','整流管压降 Vd','V',0.7,'副边整流二极管正向压降'],
+  ['n','匝比 n (原:副)','—',6,'变压器原副边匝数比'],
+  ['Po','输出功率 Po','W',42.9,'满载输出功率'],
+  ['eta','效率 η','—',0.88,'整机效率估算'],
+  ['Lm_uh','励磁电感 Lm','μH',250,'原边励磁电感'],
+  ['Cr_pf','谐振电容 Cr','pF',120,'MOSFET Coss + 绕组寄生电容之和'],
+  ['twin_us','检测窗口 t_window','μs',0,'驱动/消隐窗口，0 表示不计'],
+  ['F0_khz','初猜频率 F0','kHz',150,'逐次逼近起始值，不影响最终结果'],
+  ['tol_pct','收敛判据','%',1,'|F算−F猜|/F猜 小于此值即停'],
+  ['Vdss','MOSFET 耐压 Vdss','V',800,'关断电压应力校核基准（选管用）'],
+];
+var cur = Object.assign({}, DEMO);
+var R = null;
+
+function fmt(v,d){ d=(d===undefined)?3:d; return Number(v).toFixed(d); }
+
+function buildInputs(){
+  var h='';
+  FIELDS.forEach(function(f){
+    h+='<tr><td class="sym">'+f[0]+'</td><td>'+f[1]+'<div class="small">'+f[4]+'</div></td>'+
+       '<td class="val"><input type="number" step="any" id="i_'+f[0]+'" value="'+cur[f[0]]+'"></td>'+
+       '<td class="unit">'+f[2]+'</td></tr>';
+  });
+  document.getElementById('tbIn').innerHTML=h;
+  FIELDS.forEach(function(f){
+    document.getElementById('i_'+f[0]).addEventListener('input',function(){
+      var v=parseFloat(this.value); if(!isNaN(v)){ cur[f[0]]=v; recalc(); }
+    });
+  });
+}
+
+function recalc(){
+  R = solveQR(cur);
+  document.getElementById('bigF').textContent = fmt(R.Fsol/1e3,2);
+  document.getElementById('hint').textContent =
+    '解析解 '+fmt(R.Fana/1e3,2)+' kHz · 迭代 '+R.iters+' 次 · '+(R.converged?'已收敛':'未收敛');
+
+  var rows = [
+    ['Vor = n(Vo+Vd)','反射电压',fmt(R.Vor,2),'V'],
+    ['√(Lm·Cr)','谐振时间常数',fmt(R.sqrt_lcr*1e6,4),'μs'],
+    ['Tres = π√(Lm·Cr)+窗口','谐振到第一谷底',fmt(R.Tres*1e6,4),'μs'],
+    ['Ipk','峰值电流',fmt(R.Ipk,3),'A'],
+    ['Ton = Lm·Ipk/Vin','导通储能时间',fmt(R.Ton*1e6,3),'μs'],
+    ['Treset = Lm·Ipk/Vor','去磁复位时间',fmt(R.Treset*1e6,3),'μs'],
+    ['Ts = Ton+Treset+Tres','开关周期',fmt(R.Ts*1e6,3),'μs'],
+    ['D = Ton/Ts','占空比',fmt(R.duty*100,1),'%'],
+    ['V谷 = Vin−Vor','谷底开通电压',fmt(R.Vvalley,1),'V'],
+    ['V应 = Vin+Vor','关断电压应力',fmt(R.Vstress,0),'V'],
+    ['F解析解 (二次方程)','闭式解对照',fmt(R.Fana/1e3,2),'kHz'],
+  ];
+  var h='';
+  rows.forEach(function(r){
+    h+='<tr><td class="sym">'+r[0]+'</td><td>'+r[1]+'</td><td class="res calc-val">'+r[2]+'</td><td class="unit">'+r[3]+'</td></tr>';
+  });
+  document.getElementById('tbRes').innerHTML=h;
+
+  h='';
+  R.hist.forEach(function(it){
+    h+='<tr><td class="val">'+it.it+'</td><td class="val">'+fmt(it.Fg/1e3,2)+'</td>'+
+       '<td class="val">'+fmt(it.Ipk,3)+'</td><td class="val">'+fmt(it.Ton*1e6,3)+'</td>'+
+       '<td class="val">'+fmt(it.Treset*1e6,3)+'</td><td class="val">'+fmt(it.Ts*1e6,3)+'</td>'+
+       '<td class="val">'+fmt(it.Fc/1e3,2)+'</td><td class="val">'+(it.err*100).toFixed(2)+'%</td></tr>';
+  });
+  document.getElementById('tbIter').innerHTML=h;
+
+  var allOK=true, ch='';
+  Object.keys(R.checks).forEach(function(name){
+    var c=R.checks[name]; if(!c[0]) allOK=false;
+    ch+='<tr><td>'+name+'</td><td class="val"><span class="chkbox '+(c[0]?'PASS':'FAIL')+'">'+
+        (c[0]?'PASS':'FAIL')+'</span></td></tr>'+
+        '<tr><td colspan="2" class="unit">'+c[1]+'</td></tr>';
+  });
+  document.getElementById('tbChk').innerHTML=ch;
+  var cc=document.getElementById('concl');
+  cc.textContent = allOK ? '全部校核通过' : '存在未通过项，见下方建议';
+  cc.className = 'concl ' + (allOK?'PASS':'FAIL');
+
+  var sug=[];
+  if(!R.checks['电压应力'][0]) sug.push('关断应力 '+fmt(R.Vstress,0)+'V 偏高：降低匝比 n（减小反射电压）、选更高耐压 MOSFET（如 900V/1000V），或加 RCD/有源钳位吸收。');
+  if(!R.checks['迭代收敛'][0]) sug.push('迭代未收敛：放宽收敛判据或增加迭代次数；若始终发散检查参数是否为正。');
+  if(!R.checks['谷底电压为正'][0]) sug.push('谷底电压为负：反射电压过大，需降低匝比 n。');
+  if(!R.checks['占空比<0.5'][0]) sug.push('占空比过大：DCM/QR 通常要求 D<0.5，可增大 Lm 或降低匝比。');
+  var sd=document.getElementById('sugg');
+  if(sug.length){ sd.innerHTML='<b>未通过项调整建议：</b><br>'+sug.map(function(s,i){return (i+1)+'. '+s;}).join('<br>'); sd.style.display='block'; }
+  else { sd.style.display='none'; }
+}
+
+function loadDemo(){ cur=Object.assign({},DEMO); buildInputs(); recalc(); }
+function copyReport(){
+  var L=['QR 反激满载开关频率计算结果'];
+  L.push('工况: Vin='+cur.Vin_max+'V Vo='+cur.Vo+'V n='+cur.n+' Po='+cur.Po+'W Lm='+cur.Lm_uh+'uH Cr='+cur.Cr_pf+'pF');
+  FIELDS.forEach(function(f){ L.push(f[0]+' = '+cur[f[0]]+' '+f[2]); });
+  L.push('---- 结果 ----');
+  L.push('收敛 Fs = '+fmt(R.Fsol/1e3,2)+' kHz; 解析解 = '+fmt(R.Fana/1e3,2)+' kHz');
+  L.push('Ipk='+fmt(R.Ipk,3)+'A Ton='+fmt(R.Ton*1e6,3)+'us Treset='+fmt(R.Treset*1e6,3)+'us Tres='+fmt(R.Tres*1e6,3)+'us Ts='+fmt(R.Ts*1e6,3)+'us');
+  L.push('谷底电压='+fmt(R.Vvalley,1)+'V 关断应力='+fmt(R.Vstress,0)+'V 占空比='+fmt(R.duty*100,1)+'%');
+  Object.keys(R.checks).forEach(function(n){ L.push('['+(R.checks[n][0]?'PASS':'FAIL')+'] '+n+': '+R.checks[n][1]); });
+  navigator.clipboard.writeText(L.join('\n')).then(function(){ alert('结果已复制'); });
+}
+
+document.getElementById('method').innerHTML =
+  '<p><b>前提</b>：QR/DCM，一周期储能全部转移；电流过零后 Lm 与 Cr 谐振，MOSFET 漏极电压振荡到第一谷底时开通（ZVS）。暂不考虑芯片频率钳位、跳谷、死区/消隐。</p>'+
+  '<p><b>耦合关系（为什么用逐次逼近）</b>：功率固定时，Fs 越高 → Ipk 越小 → Ton/Treset 越短 → Ts 越短 → Fs 又该更高。Fs 与 Ipk 互相咬合，没有一步到位的显式解，故迭代。</p>'+
+  '<p><b>方程</b>：<code>Po = η·½Lm·Ipk²·Fs</code> → <code>Ipk=√(2Po/(ηLmFs))</code>；'+
+  '<code>Ton=Lm·Ipk/Vin</code>，<code>Treset=Lm·Ipk/Vor</code>，<code>Tres≈π√(LmCr)+窗口</code>，'+
+  '<code>Ts=Ton+Treset+Tres</code>，<code>Fcalc=1/Ts</code>。猜 Fs→算各时间→得 Fcalc→以 Fcalc 为新猜测，直到相对误差小于判据。</p>'+
+  '<p><b>解析解</b>：代入 Ipk 后 <code>1/F = A/√F + B</code>，其中 <code>A=Lm(1/Vin+1/Vor)√(2Po/(ηLm))</code>，'+
+  '<code>B=Tres</code>。令 x=√F 得 <code>Bx²+Ax−1=0</code>，取正根 <code>x=(−A+√(A²+4B))/(2B)</code>，<code>F=x²</code>。与迭代解互相印证。</p>'+
+  '<p><b>工程依据</b>：Vor=n(Vo+Vd) 为副边反射到原边的电压；关断时 MOSFET 承受 Vin+Vor，故按 0.8×Vdss 留 20% 裕量校核；'+
+  '谷底电压 Vin−Vor 需为正；QR/DCM 通常要求占空比 D&lt;0.5。材料/器件常数按所选 MOSFET 手册取值，Vdss 默认 800V 仅为演示，可改。</p>'+
+  '<p class="small">注：本工具为工程初设与量级校验用，未计入频率钳位、跳谷、死区与消隐、变压器损耗、实际 Coss 非线性等，最终以芯片数据手册与实测为准。</p>';
+
+loadDemo();
+</script>
+</body>
+</html>
