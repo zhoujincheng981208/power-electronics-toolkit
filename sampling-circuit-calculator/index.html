@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>采样电路参数计算器</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:20px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+    padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  .tab.active{background:var(--acc);color:#ffffff;border-color:var(--acc)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:86px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8}
+  .full{grid-column:1/-1}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .concl{padding:14px 16px;font-size:15px;font-weight:700}
+  .concl.PASS{color:var(--pass)} .concl.FAIL{color:var(--fail)}
+  .note{color:var(--sub);font-size:12px;padding:10px 16px 14px;line-height:1.7}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .chain{font-size:12px;color:var(--sub);margin-bottom:14px}
+  .chain b{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>采样电路参数计算器</h1>
+  <div class="sub">电压采样（分压电阻） / 交流电流（CT） / 直流电流（霍尔）　·　输入范围 → ADC满量程 → 分压比 / 变比 / 量程 → 电阻选型 → 精度功耗校验</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动 PASS / FAIL）</span>
+  </div>
+  <div class="bar">
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="chain" id="chain"></span>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="panel"></div>
+
+  <details open>
+    <summary>计算方法与工程依据（点击展开 / 收起）</summary>
+    <div id="method"></div>
+  </details>
+</div>
+
+<!-- ============ 纯计算内核（与 calc_core.py 逐项一致，verify_web.js 抽取此处校验） ============ -->
+<script id="core">
+function rss(){ var s=0; for(var i=0;i<arguments.length;i++) s+=arguments[i]*arguments[i]; return Math.sqrt(s); }
+function adc_quant_err(bits){ return 100/(2*Math.pow(2,bits)); }
+
+function calcDivider(p){
+  var Vin=p.Vin_max, Vfs=p.Vadc_fs, kuse=p.k_use, R2=p.R2_k*1e3;
+  var tol1=p.tol_R1, tol2=p.tol_R2, tcr1=p.TCR1, tcr2=p.TCR2;
+  var dT=p.dT, bits=p.adc_bits, Prat=p.P_rated, elim=p.err_limit;
+  var Vt=Vfs*kuse;
+  var K=Vin/Vt;
+  var R1=(K-1)*R2;
+  var Rtot=R1+R2;
+  var Idiv=Vin/Rtot;
+  var P1=Idiv*Idiv*R1;
+  var P2=Idiv*Idiv*R2;
+  var Ptot=Vin*Vin/Rtot;
+  var w1=R1/Rtot, w2=R2/Rtot;
+  var e_tol=w1*tol1+w2*tol2;
+  var e_temp=Math.abs(tcr1-tcr2)*dT*1e-4;
+  var e_adc=adc_quant_err(bits);
+  var e_tot=rss(e_tol,e_temp,e_adc);
+  var n_series1=(P1>Prat)?Math.ceil(P1/Prat):1;
+  return {Vt:Vt,K:K,R1:R1,R2:R2,Rtot:Rtot,Idiv:Idiv,P1:P1,P2:P2,Ptot:Ptot,Rin:Rtot,
+    e_tol:e_tol,e_temp:e_temp,e_adc:e_adc,e_tot:e_tot,n_series1:n_series1,
+    checks:{
+      '上臂功耗':[P1<=Prat, P1.toFixed(3)+' W ≤ '+Prat+' W'],
+      '下臂功耗':[P2<=Prat, P2.toFixed(4)+' W ≤ '+Prat+' W'],
+      '分压比精度':[e_tot<=elim, e_tot.toFixed(3)+'% ≤ '+elim+'%']
+    }};
+}
+
+function calcCT(p){
+  var Ipri=p.Ipri_max, n=p.ct_ratio_n, Vfs=p.Vadc_fs, kuse=p.k_use;
+  var Rb=p.Rb_ohm, Rw=p.Rw_ohm, VAr=p.VA_rated, cls=p.ct_class;
+  var tol=p.tol_Rb, tcr=p.tcr_Rb, dT=p.dT, bits=p.adc_bits, elim=p.err_limit;
+  var Isec=Ipri/n;
+  var Vt=Vfs*kuse;
+  var Rb_need=Vt/Isec;
+  var Vadc=Isec*Rb;
+  var Rtot=Rb+Rw;
+  var VA=Isec*Isec*Rtot;
+  var P_rb=Isec*Isec*Rb;
+  var scale=n/Rb;
+  var e_ct=cls;
+  var e_rb=tol;
+  var e_temp=tcr*dT*1e-4;
+  var e_adc=adc_quant_err(bits);
+  var e_tot=rss(e_ct,e_rb,e_temp,e_adc);
+  return {Isec:Isec,Vt:Vt,Rb_need:Rb_need,Rb:Rb,Vadc:Vadc,Rtot:Rtot,VA:VA,P_rb:P_rb,scale:scale,
+    e_ct:e_ct,e_rb:e_rb,e_temp:e_temp,e_adc:e_adc,e_tot:e_tot,
+    checks:{
+      'ADC量程':[Vadc<=Vfs, Vadc.toFixed(3)+' V ≤ '+Vfs+' V'],
+      'CT负荷':[VA<=VAr, VA.toFixed(3)+' VA ≤ '+VAr+' VA'],
+      '总精度':[e_tot<=elim, e_tot.toFixed(3)+'% ≤ '+elim+'%']
+    }};
+}
+
+function calcHall(p){
+  var Ipri=p.Ipri_max, In=p.In_rated, Vzero=p.Vzero, swing=p.Vout_swing;
+  var Vfs=p.Vadc_fs, bits=p.adc_bits, margin=p.margin, lin=p.linearity;
+  var off=p.offset_mV, off_t=p.offset_drift, sen_t=p.sens_drift, dT=p.dT, elim=p.err_limit;
+  var S=swing/In;
+  var LSB=Vfs/Math.pow(2,bits);
+  var Ires=LSB/S;
+  var Vsig=S*Ipri;
+  var Vhi=Vzero+Vsig;
+  var Vlo=Vzero-Vsig;
+  var e_lin=lin*(In/Ipri);
+  var e_off=(off/1000)/(S*Ipri)*100;
+  var e_offt=(off_t*dT/1000)/(S*Ipri)*100;
+  var e_st=sen_t*dT;
+  var e_adc=adc_quant_err(bits);
+  var e_tot=rss(e_lin,e_off,e_offt,e_st,e_adc);
+  return {S:S,LSB:LSB,Ires:Ires,Vsig:Vsig,Vhi:Vhi,Vlo:Vlo,
+    e_lin:e_lin,e_off:e_off,e_offt:e_offt,e_st:e_st,e_adc:e_adc,e_tot:e_tot,
+    checks:{
+      '量程覆盖':[In>=Ipri*margin, In+' A ≥ '+(Ipri*margin).toFixed(0)+' A'],
+      '输出不越界':[(Vhi<=Vfs && Vlo>=0), Vlo.toFixed(2)+'~'+Vhi.toFixed(2)+' V ∈ 0~'+Vfs+' V'],
+      '总精度':[e_tot<=elim, e_tot.toFixed(3)+'% ≤ '+elim+'%']
+    }};
+}
+
+var DEMO={
+  div:{Vin_max:700,Vadc_fs:3.3,k_use:0.85,R2_k:10,tol_R1:0.1,tol_R2:0.1,TCR1:25,TCR2:25,dT:20,adc_bits:12,P_rated:0.25,err_limit:1.0},
+  ct:{Ipri_max:1000,ct_ratio_n:1000,Vadc_fs:3.3,k_use:0.85,Rb_ohm:2.7,Rw_ohm:0.1,VA_rated:5,ct_class:0.5,tol_Rb:0.1,tcr_Rb:25,dT:20,adc_bits:12,err_limit:1.0},
+  hall:{Ipri_max:500,In_rated:600,Vzero:2.5,Vout_swing:2.0,Vadc_fs:5,adc_bits:12,margin:1.2,linearity:0.5,offset_mV:10,offset_drift:0.2,sens_drift:0.03,dT:20,err_limit:1.5}
+};
+</script>
+
+<!-- ============ UI 逻辑 ============ -->
+<script>
+var SCHEMA={
+  div:{
+    name:'分压电阻（电压采样）', calc:calcDivider,
+    chain:'被测电压 <b>Vin</b> → 分压电阻 <b>R1/R2</b> → ADC 电压 <b>Vout</b> → 精度 / 功耗校验',
+    inputs:[
+      ['Vin_max','最大输入电压','Vin,max','V'],['Vadc_fs','ADC满量程','Vadc,fs','V'],
+      ['k_use','ADC使用率','k','—'],['R2_k','下臂电阻 R2','R2','kΩ'],
+      ['tol_R1','上臂精度','tol1','%'],['tol_R2','下臂精度','tol2','%'],
+      ['TCR1','上臂温漂','TCR1','ppm/℃'],['TCR2','下臂温漂','TCR2','ppm/℃'],
+      ['dT','温升','ΔT','℃'],['adc_bits','ADC位数','N','bit'],
+      ['P_rated','单电阻额定功率','Pn','W'],['err_limit','误差限值','err,max','%']
+    ],
+    calcs:[
+      ['Vt','目标ADC电压','Vt','V',3,1],['K','衰减倍数','K','倍',2,1],
+      ['R1','上臂电阻','R1','MΩ',3,1e-6],['R2','下臂电阻','R2','kΩ',2,1e-3],
+      ['Rtot','总阻值','Rtot','MΩ',3,1e-6],['Idiv','分压支路电流','Idiv','mA',3,1e3],
+      ['P1','上臂功耗','P1','W',4,1],['P2','下臂功耗','P2','W',4,1],
+      ['Ptot','分压总功耗','Ptot','W',4,1],['Rin','输入阻抗','Rin','MΩ',3,1e-6],
+      ['e_tol','阻值精度误差','e_tol','%',4,1],['e_temp','温漂失配误差','e_temp','%',4,1],
+      ['e_adc','ADC量化误差','e_adc','%',4,1],['e_tot','总误差(RSS)','e_tot','%',4,1],
+      ['n_series1','上臂需串联数','n','个',0,1]
+    ]
+  },
+  ct:{
+    name:'CT（交流电流采样）', calc:calcCT,
+    chain:'一次电流 <b>Ipri</b> → CT 变比 <b>n:1</b> → 二次电流 <b>Isec</b> → 负载电阻 <b>Rb</b> → ADC 电压',
+    inputs:[
+      ['Ipri_max','一次侧最大电流','Ipri','A'],['ct_ratio_n','CT变比 n:1','n','—'],
+      ['Vadc_fs','ADC满量程','Vadc,fs','V'],['k_use','ADC使用率','k','—'],
+      ['Rb_ohm','负载电阻 Rb','Rb','Ω'],['Rw_ohm','绕组+导线阻抗','Rw','Ω'],
+      ['VA_rated','CT额定负荷','VAn','VA'],['ct_class','CT精度等级','class','%'],
+      ['tol_Rb','Rb精度','tol','%'],['tcr_Rb','Rb温漂','TCR','ppm/℃'],
+      ['dT','温升','ΔT','℃'],['adc_bits','ADC位数','N','bit'],['err_limit','误差限值','err,max','%']
+    ],
+    calcs:[
+      ['Isec','二次侧电流','Isec','A',4,1],['Vt','目标ADC电压','Vt','V',3,1],
+      ['Rb_need','理论所需Rb','Rb,need','Ω',3,1],['Vadc','实际输出电压','Vadc','V',3,1],
+      ['Rtot','二次总阻抗','Rtot','Ω',3,1],['VA','CT实际负荷','VA','VA',3,1],
+      ['P_rb','Rb功耗','P_rb','W',3,1],['scale','电流比例尺','k','A/V',2,1],
+      ['e_ct','CT比差','e_ct','%',4,1],['e_rb','Rb误差','e_rb','%',4,1],
+      ['e_temp','Rb温漂误差','e_temp','%',4,1],['e_adc','ADC量化误差','e_adc','%',4,1],
+      ['e_tot','总误差(RSS)','e_tot','%',4,1]
+    ]
+  },
+  hall:{
+    name:'霍尔（直流电流采样）', calc:calcHall,
+    chain:'被测电流 <b>Ipri</b> → 霍尔量程 <b>In / 灵敏度 S</b> → 输出电压 → ADC → 精度校验',
+    inputs:[
+      ['Ipri_max','被测最大电流','Ipri','A'],['In_rated','霍尔额定量程','In','A'],
+      ['Vzero','零点输出','Vzero','V'],['Vout_swing','满量程摆幅(±)','Vsw','V'],
+      ['Vadc_fs','ADC满量程','Vadc,fs','V'],['adc_bits','ADC位数','N','bit'],
+      ['margin','量程裕量系数','m','—'],['linearity','线性度','lin','%FS'],
+      ['offset_mV','零点失调','Vos','mV'],['offset_drift','零点温漂','dVos','mV/℃'],
+      ['sens_drift','灵敏度温漂','dS','%/℃'],['dT','温升','ΔT','℃'],['err_limit','误差限值','err,max','%']
+    ],
+    calcs:[
+      ['S','灵敏度','S','mV/A',3,1e3],['LSB','ADC电压分辨率','LSB','mV',3,1e3],
+      ['Ires','电流分辨率','Ires','A/LSB',4,1],['Vsig','满流信号电压','Vsig','V',3,1],
+      ['Vhi','输出上界','Vhi','V',3,1],['Vlo','输出下界','Vlo','V',3,1],
+      ['e_lin','线性度误差','e_lin','%',4,1],['e_off','失调误差','e_off','%',4,1],
+      ['e_offt','失调温漂误差','e_offt','%',4,1],['e_st','灵敏度温漂误差','e_st','%',4,1],
+      ['e_adc','ADC量化误差','e_adc','%',4,1],['e_tot','总误差(RSS)','e_tot','%',4,1]
+    ]
+  }
+};
+var METHOD={
+  div:`<p><b>链路：</b>最大输入 Vin,max 时让 ADC 达到使用率的满量程 → <code>Vt=Vadc,fs × k</code> → 衰减倍数 <code>K=Vin,max/Vt</code> → <code>R1=(K−1)·R2</code>。</p>
+  <p><b>功耗：</b>分压电流 <code>I=Vin,max/(R1+R2)</code>，上/下臂功耗 <code>P=I²R</code>。高压分压时上臂功耗常超标，需多只电阻串联均压均功耗（n=⌈P1/Pn⌉）。</p>
+  <p><b>精度：</b>阻值误差按权重合成 <code>e_tol=w1·tol1+w2·tol2</code>；温漂失配 <code>e_temp=|TCR1−TCR2|·ΔT</code>（同型号同温漂时可抵消）；ADC 量化 <code>1/(2·2ᴺ)</code>；总误差 RSS 合成。</p>`,
+  ct:`<p><b>链路：</b>一次电流除以变比得二次电流 <code>Isec=Ipri/n</code> → 负载电阻把电流变成电压 <code>Vadc=Isec·Rb</code>，需 ≤ ADC 满量程。理论 Rb=Vt/Isec。</p>
+  <p><b>负荷校验：</b>CT 二次总阻抗包含 burden 与绕组/导线，实际负荷 <code>VA=Isec²·(Rb+Rw)</code> 必须小于额定 VA，否则比差角差恶化甚至饱和。</p>
+  <p><b>精度：</b>CT 比差（精度等级）+ burden 精度 + burden 温漂 + ADC 量化，RSS 合成。比例尺 <code>k=n/Rb</code>，即 一次电流 = Vadc × k。</p>`,
+  hall:`<p><b>链路：</b>额定量程 In 需覆盖 <code>Ipri×m</code>；灵敏度 <code>S=Vsw/In</code>；满流信号 <code>Vsig=S·Ipri</code>；输出落在 <code>Vzero±Vsig</code>，必须落在 0~Vadc,fs 内。</p>
+  <p><b>分辨率：</b>电流分辨率 <code>Ires=LSB/S</code>，其中 <code>LSB=Vadc,fs/2ᴺ</code>。</p>
+  <p><b>精度：</b>线性度按 %FS 给出，折算到实际读数需乘 In/Ipri；再加零点失调、失调温漂、灵敏度温漂、ADC 量化，RSS 合成。</p>`
+};
+
+var state={};
+function initState(){ for(var k in DEMO) state[k]=Object.assign({},DEMO[k]); }
+var current='div';
+
+function el(id){return document.getElementById(id);}
+function fmt(v,d,scale){ return (v*scale).toFixed(d); }
+
+function buildTabs(){
+  var h='';
+  for(var k in SCHEMA) h+='<button class="tab'+(k===current?' active':'')+'" onclick="switchTab(\''+k+'\')">'+SCHEMA[k].name+'</button>';
+  el('tabs').innerHTML=h;
+}
+function switchTab(k){ current=k; render(); }
+
+function render(){
+  buildTabs();
+  var s=SCHEMA[current], d=state[current], r=s.calc(d);
+  el('chain').innerHTML=s.chain;
+  var hi='<div class="grid">';
+  hi+='<div class="card in"><h2>输入区（黄，可改）</h2><table><tr><th>参数</th><th>符号</th><th style="text-align:right">数值</th><th>单位</th></tr>';
+  s.inputs.forEach(function(f){
+    hi+='<tr><td class="name">'+f[1]+'</td><td class="sym">'+f[2]+'</td><td class="val"><input type="number" step="any" value="'+d[f[0]]+'" onchange="setVal(\''+f[0]+'\',this.value)"></td><td class="unit">'+f[3]+'</td></tr>';
+  });
+  hi+='</table></div>';
+  hi+='<div class="card calc"><h2>计算区（实时联动）</h2><table><tr><th>输出量</th><th>符号</th><th style="text-align:right">结果</th><th>单位</th></tr>';
+  s.calcs.forEach(function(f){
+    hi+='<tr><td class="name">'+f[1]+'</td><td class="sym">'+f[2]+'</td><td class="res calc-val">'+fmt(r[f[0]],f[4],f[5])+'</td><td class="unit">'+f[3]+'</td></tr>';
+  });
+  hi+='</table></div></div>';
+
+  var allPass=true, ch='<div class="card chk full" style="margin-top:20px"><h2>校核区（自动判定）</h2><table><tr><th>校核项</th><th>实测 / 限值</th><th style="text-align:right">判定</th></tr>';
+  for(var name in r.checks){
+    var ok=r.checks[name][0], desc=r.checks[name][1];
+    if(!ok) allPass=false;
+    ch+='<tr><td class="name">'+name+'</td><td class="sym">'+desc+'</td><td class="val"><span class="chkbox '+(ok?'PASS':'FAIL')+'">'+(ok?'PASS':'FAIL')+'</span></td></tr>';
+  }
+  ch+='</table><div class="concl '+(allPass?'PASS':'FAIL')+'">综合结论：'+(allPass?'全部校核通过 ✓':'存在未通过项，请调整参数')+'</div></div>';
+  el('panel').innerHTML=hi+ch;
+  el('method').innerHTML=METHOD[current];
+}
+function setVal(key,v){ var n=parseFloat(v); if(!isNaN(n)){ state[current][key]=n; render(); } }
+function loadDemo(){ initState(); render(); }
+function copyReport(){
+  var s=SCHEMA[current], d=state[current], r=s.calc(d);
+  var t='【'+s.name+'】\n输入：'+s.inputs.map(function(f){return f[1]+'='+d[f[0]]+f[3];}).join('，')+'\n';
+  t+='结果：'+s.calcs.map(function(f){return f[1]+'='+fmt(r[f[0]],f[4],f[5])+f[3];}).join('，')+'\n';
+  t+='校核：'+Object.keys(r.checks).map(function(k){return k+' '+(r.checks[k][0]?'PASS':'FAIL')+'('+r.checks[k][1]+')';}).join('，');
+  if(navigator.clipboard) navigator.clipboard.writeText(t);
+  alert('结果已复制到剪贴板');
+}
+initState(); render();
+</script>
+</body>
+</html>
