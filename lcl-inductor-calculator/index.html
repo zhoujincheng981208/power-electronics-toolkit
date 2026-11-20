@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCS 网侧 LCL 滤波电感设计计算器</title>
+<style>
+  :root{
+    --bg:#0f1621; --panel:#17212f; --panel2:#1d2939; --line:#2b3a4d;
+    --txt:#e7edf5; --sub:#9fb0c4; --acc:#4da3ff;
+    --in:#3a3016; --in-line:#8a6d1f; --calc:#242b35; --chk:#15301f; --chk-line:#2c6b3f;
+    --pass:#3ddc84; --fail:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:22px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:24px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line);color:var(--txt)}
+  .card.in h2{background:#4a3c12}
+  .card.calc h2{background:#2a323d}
+  .card.chk h2{background:#1b3d27}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+  tr:last-child td{border-bottom:none}
+  .name{color:var(--txt)}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:88px;background:var(--in);border:1px solid var(--in-line);color:#ffe9a8;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{background:var(--calc);border:1px solid var(--line);border-radius:6px;
+    padding:5px 8px;color:var(--txt)}
+  .full{grid-column:1/-1}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(61,220,132,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(255,107,107,.12)}
+  .concl{padding:14px 16px;font-size:15px;font-weight:700}
+  .concl.PASS{color:var(--pass)} .concl.FAIL{color:var(--fail)}
+  .note{color:var(--sub);font-size:12px;padding:12px 16px;line-height:1.7}
+  .bar{display:flex;gap:10px;margin-bottom:18px}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .sec-tag{font-size:11px;color:var(--sub);padding:0 12px 8px}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#ffd479}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PCS 网侧 LCL 滤波电感设计计算器</h1>
+  <div class="sub">430kW / 690V / Kool Mu 60μ 环形　·　参数可改，实时联动，公式与 Excel / 复算脚本完全一致</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（可修改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动判定）</span>
+  </div>
+
+  <div class="bar">
+    <button onclick="resetAll()">恢复默认工况</button>
+    <button onclick="window.print()">打印 / 导出</button>
+  </div>
+
+  <div class="grid">
+    <!-- 输入区 -->
+    <div class="card in">
+      <h2>① 输入区 — 工况与硬件参数</h2>
+      <div class="sec-tag">工况（题目给定）</div>
+      <table><tbody id="in-work"></tbody></table>
+      <div class="sec-tag">磁芯与材料（参考值 / 查证值，按料号核对）</div>
+      <table><tbody id="in-core"></tbody></table>
+    </div>
+
+    <!-- 计算区 -->
+    <div class="card calc">
+      <h2>② 计算区 — 联动结果</h2>
+      <div class="sec-tag">电气量</div>
+      <table><tbody id="calc-elec"></tbody></table>
+      <div class="sec-tag">磁芯与安匝</div>
+      <table><tbody id="calc-mag"></tbody></table>
+      <div class="sec-tag">损耗与温升</div>
+      <table><tbody id="calc-loss"></tbody></table>
+    </div>
+
+    <!-- 校核区 -->
+    <div class="card chk full">
+      <h2>③ 校核区 — 自动 PASS / FAIL</h2>
+      <table>
+        <thead><tr><th>校核项</th><th>判据</th><th style="text-align:right">实测值</th><th style="text-align:center">结果</th></tr></thead>
+        <tbody id="chk"></tbody>
+      </table>
+      <div id="concl" class="concl">—</div>
+      <div id="advice" class="note"></div>
+    </div>
+  </div>
+
+  <details>
+    <summary>计算依据与材料常数说明（点击展开）</summary>
+    <ul>
+      <li>电感量：<code>L = Vdc/(4·fsw·ΔIpp)</code>，单相/两电平伏秒平衡工程估算。</li>
+      <li>标幺值：<code>Lpu = L/(Zb/(2π·fg))</code>，<code>Zb=Vll²/P</code>，网侧合理区间 5%~20%。</li>
+      <li>安匝积：<code>N·n = L·Ipk/(Bdesign·Ae)</code>，峰值磁密法核心；n 由窗口约束 <code>n≥√(N·n·Awire/(Ku·ID·H))</code> 定。</li>
+      <li>铜损：<code>Rac=kac·ρ(1+α·ΔT)·N·MLT/Awire</code>，<code>Pcu=Iph²·Rac</code>。</li>
+      <li>铁损：Steinmetz <code>Pv=a·Bac^b·fsw^c</code>，Kool Mu 60μ 系数 a=18.01, b=1.602, c=1.401（B:T, f:kHz, Pv:mW/cm³）。</li>
+      <li>温升：<code>ΔT=(Pcu+Pfe)·Rth</code>。</li>
+      <li><b>材料常数来源</b>：Bsat=1.0T（10500 Gauss）、Steinmetz 系数均取自 Magnetics Kool Mu 官方手册。ID/H/Rth/kac/Bdesign 为工程参考值，须按实际料号与散热条件核对。</li>
+    </ul>
+  </details>
+</div>
+
+<script>
+// 默认参数（与 calc_core.py / Excel 输入区一致）
+const DEF = {
+  P:430, Vll:690, fg:50, Vdc:1100, fsw:5, pf:0.99, kr:0.30, J:6,
+  OD:150, ID:90, H:30, mue:60, kst:0.95, Bsat:1.0, Bdes:0.60,
+  Kut:0.40, Kumax:0.50, Smax:0.80, kac:1.30, rho:1.72e-8, acu:0.00393,
+  dTcu:40, sa:18.01, sb:1.602, sc:1.401, Rth:0.030, DTmax:50,
+  Lpumin:0.05, Lpumax:0.20
+};
+let S = {...DEF};
+
+const WORK = [
+  ["P","额定功率","P","kW"], ["Vll","网侧线电压","Vll","V"],
+  ["fg","电网频率","fg","Hz"], ["Vdc","直流母线电压","Vdc","V"],
+  ["fsw","开关频率","fsw","kHz"], ["pf","功率因数","pf","—"],
+  ["kr","电流纹波率","kr","—"], ["J","电流密度","J","A/mm²"]
+];
+const CORE = [
+  ["OD","环形外径","OD","mm"], ["ID","环形内径","ID","mm"], ["H","单芯高度","H","mm"],
+  ["mue","有效磁导率","μe","—"], ["kst","叠片系数","kst","—"], ["Bsat","饱和磁密","Bsat","T"],
+  ["Bdes","设计峰值磁密","Bdesign","T"], ["Kut","目标窗口利用率","Ku_t","—"],
+  ["Kumax","窗口上限","Ku_max","—"], ["Smax","饱和裕度上限","S_max","—"],
+  ["kac","交流电阻系数","kac","—"], ["rho","铜电阻率@20℃","ρ","Ω·m"],
+  ["acu","铜温度系数","α","/K"], ["dTcu","电阻温升参考","ΔTcu","K"],
+  ["sa","Steinmetz a","a","—"], ["sb","Steinmetz b","b","—"], ["sc","Steinmetz c","c","—"],
+  ["Rth","磁芯-环境热阻","Rth","K/W"], ["DTmax","温升上限","ΔTmax","K"],
+  ["Lpumin","标幺下限","Lpu_min","pu"], ["Lpumax","标幺上限","Lpu_max","pu"]
+];
+
+function inputRow(k,name,sym,unit){
+  return `<tr><td class="name">${name}</td><td class="sym">${sym}</td>
+    <td><input id="i_${k}" type="number" step="any" value="${S[k]}" oninput="S.${k}=parseFloat(this.value)||0; calc()"></td>
+    <td class="unit">${unit}</td></tr>`;
+}
+document.getElementById("in-work").innerHTML = WORK.map(x=>inputRow(...x)).join("");
+document.getElementById("in-core").innerHTML = CORE.map(x=>inputRow(...x)).join("");
+
+const CALC_ELEC=[
+  ["Iph","额定相电流","Iph","A",2],["dIpp","纹波峰峰值","ΔIpp","A",2],
+  ["L","所需电感量","L","μH",1],["lpu","电感标幺值","Lpu","%",2],["ipk","峰值电感电流","Ipk","A",2]
+];
+const CALC_MAG=[
+  ["Ae","单芯截面积","Ae","mm²",1],["le","平均磁路长","le","mm",1],
+  ["Ve","单芯体积","Ve","cm³",1],["Awire","每匝导体截面","Awire","mm²",2],
+  ["AN","安匝积","N·n","A·turn",1],["n","并联磁芯数","n","",0],
+  ["N","绕组匝数","N","turn",0],["stackh","叠堆高度","h","mm",0],
+  ["Aw","叠堆有效窗口","Aw","mm²",0],["bpk","峰值磁密","Bpk","T",4],
+  ["ku","窗口利用率","Ku","",4]
+];
+const CALC_LOSS=[
+  ["mlt","平均每匝长","MLT","mm",1],["rdc","直流电阻","Rdc","mΩ",3],
+  ["rac","交流电阻","Rac","mΩ",3],["pcu","铜损","Pcu","W",1],
+  ["bac","交流磁密幅值","Bac","T",4],["pv","铁损密度","Pv","mW/cm³",3],
+  ["pfe","铁损","Pfe","W",2],["ptot","总损耗","Ptotal","W",1],["dt","稳态温升","ΔT","K",2]
+];
+function calcRow(k,name,sym,unit,d){
+  return `<tr><td class="name">${name}</td><td class="sym">${sym}</td>
+    <td class="val"><span class="calc-val" id="c_${k}">—</span></td>
+    <td class="unit">${unit}</td></tr>`;
+}
+document.getElementById("calc-elec").innerHTML = CALC_ELEC.map(x=>calcRow(...x)).join("");
+document.getElementById("calc-mag").innerHTML  = CALC_MAG.map(x=>calcRow(...x)).join("");
+document.getElementById("calc-loss").innerHTML = CALC_LOSS.map(x=>calcRow(...x)).join("");
+
+function fmt(v,d){ return Number(v).toLocaleString("zh-CN",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function set(k,v,d){ const e=document.getElementById("c_"+k); if(e) e.textContent=fmt(v,d); }
+
+function calc(){
+  const P=S.P,Vll=S.Vll,fg=S.fg,Vdc=S.Vdc,fsw=S.fsw,pf=S.pf,kr=S.kr,J=S.J;
+  const OD=S.OD,ID=S.ID,H=S.H,kst=S.kst,Bdes=S.Bdes,Kut=S.Kut,kac=S.kac;
+  const rho=S.rho,acu=S.acu,dTcu=S.dTcu,sa=S.sa,sb=S.sb,sc=S.sc,Rth=S.Rth;
+
+  const iphase=P*1000/(Math.sqrt(3)*Vll*pf);
+  const dipp=kr*iphase;
+  const L=Vdc/(4*fsw*1000*dipp);
+  const zbase=Vll*Vll/(P*1000), lbase=zbase/(2*Math.PI*fg);
+  const lpu=L/lbase;
+  const ipk=iphase*Math.SQRT2+dipp/2;
+
+  const Ae=(OD-ID)/2*H*kst/1e6;
+  const le=Math.PI*(OD+ID)/2/1000;
+  const Ve=Ae*le*1e6;
+  const Awire=iphase/J;
+  const AN=L*ipk/(Bdes*Ae);
+  const nmin=Math.sqrt(AN*Awire/(Kut*ID*H));
+  const n=Math.ceil(nmin);
+  const N=Math.round(AN/n);
+  const stackh=n*H;
+  const Aw=ID*stackh;
+  const bpk=L*ipk/(N*n*Ae);
+  const ku=N*Awire/Aw;
+
+  const mlt=(2*stackh+(OD-ID)+20)/1000;
+  const rdc=rho*(1+acu*dTcu)*N*mlt/(Awire/1e6);
+  const rac=kac*rdc;
+  const pcu=iphase*iphase*rac;
+  const dB=L*dipp/(N*n*Ae);
+  const bac=dB/2;
+  const pv=sa*Math.pow(bac,sb)*Math.pow(fsw,sc);
+  const pfe=pv*(n*Ve)/1000;
+  const ptot=pcu+pfe;
+  const dt=ptot*Rth;
+
+  set("Iph",iphase,2); set("dIpp",dipp,2); set("L",L*1e6,1);
+  set("lpu",lpu*100,2); set("ipk",ipk,2);
+  set("Ae",Ae*1e6,1); set("le",le*1000,1); set("Ve",Ve,1); set("Awire",Awire,2);
+  set("AN",AN,1); set("n",n,0); set("N",N,0); set("stackh",stackh,0);
+  set("Aw",Aw,0); set("bpk",bpk,4); set("ku",ku,4);
+  set("mlt",mlt*1000,1); set("rdc",rdc*1000,3); set("rac",rac*1000,3);
+  set("pcu",pcu,1); set("bac",bac,4); set("pv",pv,3); set("pfe",pfe,2);
+  set("ptot",ptot,1); set("dt",dt,2);
+
+  const margin=bpk/S.Bsat;
+  const checks=[
+    ["标幺值区间",`5% ≤ Lpu ≤ 20%`,fmt(lpu*100,2)+" %",lpu>=S.Lpumin&&lpu<=S.Lpumax],
+    ["饱和裕度",`Bpk/Bsat &lt; ${S.Smax}`,fmt(margin,4),margin<S.Smax],
+    ["窗口利用率",`Ku &lt; ${S.Kumax}`,fmt(ku,4),ku<S.Kumax],
+    ["稳态温升",`ΔT &lt; ${S.DTmax} K`,fmt(dt,2)+" K",dt<S.DTmax]
+  ];
+  document.getElementById("chk").innerHTML=checks.map(c=>
+    `<tr><td class="name">${c[0]}</td><td class="unit">${c[1]}</td>
+     <td class="val">${c[2]}</td><td style="text-align:center">
+     <span class="chkbox ${c[3]?'PASS':'FAIL'}">${c[3]?'PASS':'FAIL'}</span></td></tr>`).join("");
+
+  const fails=checks.filter(c=>!c[3]);
+  const concl=document.getElementById("concl");
+  concl.className="concl "+(fails.length?"FAIL":"PASS");
+  concl.textContent=fails.length?`综合结论：${fails.length} 项未通过 — ${fails.map(f=>f[0]).join("、")}`:"综合结论：全部校核项通过";
+  document.getElementById("advice").innerHTML = fails.length ?
+    `<b>调整建议：</b>① 降低设计磁密 Bdesign（0.60→0.50T），匝数与铜损同步下降；② 提高并联芯数 n，降低每芯磁密与铜损；③ 减小热阻 Rth（加强风道 / 增大散热面积 / 提高风速，或改强迫液冷）；④ 增大导体截面（降低 J），铜损下降但窗口利用率上升，需再平衡 n。` :
+    `所有校核项满足设计要求。`;
+}
+
+function resetAll(){
+  S={...DEF};
+  Object.keys(DEF).forEach(k=>{const e=document.getElementById("i_"+k);if(e)e.value=DEF[k];});
+  calc();
+}
+calc();
+</script>
+</body>
+</html>
