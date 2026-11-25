@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>磁性元件综合设计平台</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1300px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:20px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+  @media(max-width:1000px){.grid,.grid3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:88px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8}
+  .full{grid-column:1/-1}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .note{color:var(--sub);font-size:12px;padding:10px 16px 14px;line-height:1.7}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .small{font-size:11px;color:var(--sub)}
+  .sugg{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;
+    font-size:12px;color:#7c5a06;margin-top:14px;line-height:1.7}
+  .bigres{text-align:center;padding:14px}
+  .bigres .num{font-size:30px;font-weight:700;color:var(--acc);font-family:Consolas,monospace}
+  .bigres .lbl{font-size:12px;color:var(--sub)}
+  .scheme-table td.best{background:#ecfbf3;font-weight:700}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;background:var(--acc);color:#fff;margin-left:6px}
+  .kv{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
+  .kv div{background:var(--calc);border-radius:6px;padding:6px 10px;flex:1;min-width:80px}
+  .kv .k{font-size:11px;color:var(--sub)}
+  .kv .v{font-family:Consolas,monospace;font-size:14px;color:var(--txt)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>磁性元件综合设计平台</h1>
+  <div class="sub">PCS / 逆变器磁性元件　·　磁芯选型 → 安匝分配 → 绕组(Dowell) → 损耗 → 温升 → 多方案优选</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动判定）</span>
+  </div>
+  <div class="bar">
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="small" id="hint"></span>
+  </div>
+  <div class="grid3">
+    <div class="card in">
+      <h2>输入区 · 工况</h2>
+      <table><tbody id="tbOp"></tbody></table>
+    </div>
+    <div class="card in">
+      <h2>输入区 · 磁芯与材料</h2>
+      <table><tbody id="tbCore"></tbody></table>
+    </div>
+    <div class="card in">
+      <h2>输入区 · 绕组与热</h2>
+      <table><tbody id="tbWind"></tbody></table>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:20px">
+    <div>
+      <div class="card calc">
+        <h2>电气量与设计点</h2>
+        <table><tbody id="tbElec"></tbody></table>
+      </div>
+      <div class="card calc" style="margin-top:20px">
+        <h2>绕组交流效应（Dowell 公式）</h2>
+        <table><tbody id="tbDowell"></tbody></table>
+        <div id="dowellNote" class="note"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card chk">
+        <h2>推荐方案 · 校核</h2>
+        <div class="bigres"><div class="num" id="bigT">--</div><div class="lbl">稳态温升 ΔT (K) · 上限 <span id="dtlim"></span> K</div></div>
+        <table><tbody id="tbChk"></tbody></table>
+        <div id="sugg" class="sugg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card calc" style="margin-top:20px">
+    <h2>Bdesign 扫描 · 多方案对比（按温升排序，推荐全 PASS 且温升最小）</h2>
+    <div style="overflow-x:auto"><table class="scheme-table" id="tbSchemes"></table></div>
+    <div class="note">同一电感量下，Bdesign 越高→匝数越少→铜损越小但磁密越接近饱和；存在温升最优点。绿色行 = 推荐方案。</div>
+  </div>
+
+  <details open>
+    <summary>计算方法与工程依据（点击展开 / 收起）</summary>
+    <div id="method"></div>
+  </details>
+</div>
+
+<!-- ============ 纯计算内核（与 calc_core.py 逐项一致，verify_web.js 抽取此处校验） ============ -->
+<script id="core">
+var MU0 = 4e-7 * Math.PI;
+function sinh(x){ return (Math.exp(x)-Math.exp(-x))/2; }
+function cosh(x){ return (Math.exp(x)+Math.exp(-x))/2; }
+
+function skinDepth(rho, f){ return Math.sqrt(2*rho/(2*Math.PI*f*MU0)); }
+
+function dowellKac(strandDmm, fHz, layers, rho, tempK){
+  rho = (rho===undefined)?1.72e-8:rho; tempK=(tempK===undefined)?0:tempK;
+  var rhoT = rho*(1+0.00393*tempK);
+  var delta = skinDepth(rhoT, fHz);
+  var dw = Math.sqrt(Math.PI/4)*strandDmm*1e-3;
+  var D = dw/delta;
+  var m = Math.max(1, layers), fr;
+  if(D < 0.05){ fr = 1 + (2/9)*(m*m-1)*D*D; }
+  else{
+    var nu2 = (sinh(D)-Math.sin(D))/(cosh(D)+Math.cos(D));
+    var nu3 = (sinh(2*D)+Math.sin(2*D))/(cosh(2*D)-Math.cos(2*D));
+    fr = D*(nu3 + (2/3)*(m*m-1)*nu2);
+  }
+  return {kac:fr, delta_mm:delta*1e3, dw_mm:dw*1e3, D:D};
+}
+
+function geom(p){
+  var Ae=(p.OD-p.ID)/2*p.H*p.STACK_K*1e-6;
+  var le=Math.PI*(p.OD+p.ID)/2*1e-3;
+  return {Ae:Ae, Ae_mm2:Ae*1e6, le:le, le_mm:le*1e3, Ve:Ae*le*1e6};
+}
+
+function electrical(p){
+  var iphase=p.P_KW*1000/(Math.sqrt(3)*p.VLL*p.PF);
+  var dip=p.KRIPPLE*iphase;
+  var L=p.VDC/(4*p.FSW_KHZ*1000*dip);
+  var zbase=p.VLL*p.VLL/(p.P_KW*1000);
+  var lbase=zbase/(2*Math.PI*p.FGRID);
+  var ipk=iphase*Math.SQRT2+dip/2;
+  var irms=Math.sqrt(iphase*iphase+Math.pow(dip/Math.sqrt(12),2));
+  return {iphase:iphase, dip_pp:dip, L:L, L_uH:L*1e6, lpu:L/lbase, lpu_pct:L/lbase*100,
+          ipk:ipk, irms:irms, zbase:zbase, lbase:lbase};
+}
+
+function oneScheme(Bd, el, gm, p){
+  var L=el.L, Ipk=el.ipk, Irms=el.irms, Ae=gm.Ae, Ve=gm.Ve;
+  var AN=L*Ipk/(Bd*Ae);
+  var Acu=Irms/p.J;
+  var aStrand=Math.PI/4*p.STRAND_D*p.STRAND_D;
+  var nStrand=Math.ceil(Acu/aStrand);
+  var Awire=nStrand*aStrand;
+  var nMin=Math.sqrt(AN*Awire/(0.40*p.ID*p.H));
+  var n=Math.max(1,Math.ceil(nMin));
+  var N=Math.max(1,Math.round(AN/n));
+  var bpk=L*Ipk/(N*n*Ae);
+  var AwStack=p.ID*(n*p.H);
+  var ku=N*Awire/AwStack;
+  var stackH=n*p.H;
+  var mlt=(2*stackH+(p.OD-p.ID)+p.END_MARGIN)*1e-3;
+
+  var dT=25, kac, rdc, rac, pcu, bac, pv, pfe, ptotal, dwt;
+  for(var it=0; it<3; it++){
+    dwt=dowellKac(p.STRAND_D, p.FSW_KHZ*1e3, p.LAYERS, p.RHO_CU, dT);
+    kac=dwt.kac;
+    var rhoT=p.RHO_CU*(1+0.00393*dT);
+    rdc=rhoT*N*mlt/(Awire*1e-6);
+    rac=kac*rdc;
+    pcu=Irms*Irms*rac;
+    var dBac=L*el.dip_pp/(N*n*Ae);
+    bac=dBac/2;
+    pv=p.STEIN_K*Math.pow(bac,p.STEIN_A)*Math.pow(p.FSW_KHZ,p.STEIN_B);
+    pfe=pv*(n*Ve)/1000;
+    ptotal=pcu+pfe;
+    var dTnew=ptotal*p.RTH;
+    if(Math.abs(dTnew-dT)<0.01){ dT=dTnew; break; }
+    dT=dTnew;
+  }
+  var sat=bpk/p.BSAT;
+  var okSat=sat<p.S_SAT, okKu=ku<p.S_KU, okDt=dT<p.DT_LIMIT;
+  return {Bdesign:Bd, AN:AN, n:n, N:N, n_strand:nStrand, Awire:Awire,
+    bpk:bpk, sat_margin:sat, ku:ku, Aw_stack:AwStack, stack_h:stackH,
+    mlt:mlt, kac:kac, delta_mm:dwt.delta_mm, dw_mm:dwt.dw_mm, Dpen:dwt.D,
+    rdc:rdc, rac:rac, pcu:pcu, bac:bac, pv:pv, pfe:pfe, ptotal:ptotal, dT:dT,
+    ok_sat:okSat, ok_ku:okKu, ok_dt:okDt, all_ok:(okSat&&okKu&&okDt)};
+}
+
+function solve(p){
+  var el=electrical(p), gm=geom(p), schemes=[];
+  var bd=p.BD_START;
+  for(; bd<=p.BD_END+1e-9; bd+=p.BD_STEP){ schemes.push(oneScheme(bd,el,gm,p)); }
+  var feasible=schemes.filter(function(s){return s.all_ok;});
+  var pool=feasible.length?feasible:schemes;
+  var best=pool.reduce(function(a,b){return b.dT<a.dT?b:a;},pool[0]);
+  return {el:el, gm:gm, schemes:schemes, best:best, has_feasible:feasible.length>0};
+}
+</script>
+
+<script>
+var DEMO={
+  P_KW:430, VLL:690, FGRID:50, VDC:1100, FSW_KHZ:5, PF:0.99, KRIPPLE:0.30, J:6,
+  OD:150, ID:90, H:30, STACK_K:0.95, BSAT:1.0, MU_E:60,
+  STEIN_K:18.01, STEIN_A:1.602, STEIN_B:1.401,
+  STRAND_D:0.10, LAYERS:1, END_MARGIN:20,
+  RHO_CU:1.72e-8, ALPHA_CU:0.00393, RTH:0.030,
+  S_SAT:0.80, S_KU:0.50, DT_LIMIT:50,
+  BD_START:0.30, BD_END:0.78, BD_STEP:0.05
+};
+var FIELDS_OP=[
+  ['P_KW','额定功率','kW'],['VLL','网侧线电压','V'],['VDC','直流母线','V'],
+  ['FSW_KHZ','开关频率','kHz'],['FGRID','电网频率','Hz'],['PF','功率因数',''],
+  ['KRIPPLE','电流纹波率',''],['J','电流密度','A/mm²']
+];
+var FIELDS_CORE=[
+  ['OD','磁芯外径 OD','mm'],['ID','内径 ID','mm'],['H','单芯叠高 H','mm'],
+  ['STACK_K','叠片填充系数',''],['BSAT','饱和磁密 Bsat','T'],
+  ['STEIN_K','Steinmetz k','mW/cm³'],['STEIN_A','B 指数 α',''],['STEIN_B','f 指数 β','']
+];
+var FIELDS_WIND=[
+  ['STRAND_D','单股直径','mm'],['LAYERS','绕组层数 m',''],
+  ['END_MARGIN','端部余量','mm'],['RTH','热阻 Rth','K/W'],
+  ['S_SAT','饱和裕度上限',''],['S_KU','窗口上限',''],['DT_LIMIT','温升上限','K']
+];
+var cur=Object.assign({},DEMO), R=null;
+function fmt(v,d){ d=(d===undefined)?3:d; return Number(v).toFixed(d); }
+function buildInputs(target, fields){
+  var h='';
+  fields.forEach(function(f){
+    h+='<tr><td class="sym">'+f[0]+'</td><td>'+f[1]+'</td>'+
+       '<td class="val"><input type="number" step="any" id="i_'+f[0]+'" value="'+cur[f[0]]+'"></td>'+
+       '<td class="unit">'+f[2]+'</td></tr>';
+  });
+  document.getElementById(target).innerHTML=h;
+}
+function bindInputs(fields){
+  fields.forEach(function(f){
+    var el=document.getElementById('i_'+f[0]);
+    if(el) el.addEventListener('input',function(){
+      var v=parseFloat(this.value); if(!isNaN(v)){ cur[f[0]]=v; recalc(); }
+    });
+  });
+}
+function loadDemo(){
+  cur=Object.assign({},DEMO);
+  buildInputs('tbOp',FIELDS_OP); buildInputs('tbCore',FIELDS_CORE); buildInputs('tbWind',FIELDS_WIND);
+  bindInputs(FIELDS_OP); bindInputs(FIELDS_CORE); bindInputs(FIELDS_WIND); recalc();
+}
+function rowsHTML(rows){ return rows.map(function(r){return '<tr><td class="sym">'+r[0]+'</td><td>'+r[1]+'</td><td class="res calc-val">'+r[2]+'</td><td class="unit">'+(r[3]||'')+'</td></tr>';}).join(''); }
+function chkHTML(c,label,detail){
+  return '<tr><td>'+label+'</td><td>'+detail+'</td><td class="res"><span class="chkbox '+(c?'PASS':'FAIL')+'">'+(c?'PASS':'FAIL')+'</span></td></tr>';
+}
+function recalc(){
+  R=solve(cur);
+  var el=R.el, gm=R.gm, b=R.best;
+  document.getElementById('hint').textContent='L='+fmt(el.L_uH,1)+'μH  Ipk='+fmt(el.ipk,1)+'A  ·  共 '+R.schemes.length+' 方案 / '+R.schemes.filter(function(s){return s.all_ok;}).length+' 可行';
+  document.getElementById('dtlim').textContent=fmt(cur.DT_LIMIT,0);
+  document.getElementById('tbElec').innerHTML=rowsHTML([
+    ['L','电感量',fmt(el.L_uH,1),'μH'],
+    ['L_pu','标幺值',fmt(el.lpu_pct,1),'%'],
+    ['Iphase','额定相电流',fmt(el.iphase,1),'A'],
+    ['Ipk','峰值电流',fmt(el.ipk,1),'A'],
+    ['ΔIpp','纹波峰峰',fmt(el.dip_pp,1),'A'],
+    ['Ae','单芯截面',fmt(gm.Ae_mm2,0),'mm²'],
+    ['le','平均磁路',fmt(gm.le_mm,0),'mm'],
+    ['Ve','单芯体积',fmt(gm.Ve,1),'cm³'],
+    ['AL','单芯感量系数',fmt(cur.MU_E*MU0*gm.Ae/gm.le*1e9,0),'nH/N²']
+  ]);
+  var dwSol=dowellKac(cur.STRAND_D,cur.FSW_KHZ*1e3,cur.LAYERS,cur.RHO_CU,0);
+  var solid=dowellKac(1.0,cur.FSW_KHZ*1e3,4,cur.RHO_CU,0);
+  document.getElementById('tbDowell').innerHTML=rowsHTML([
+    ['δ','趋肤深度',fmt(dwSol.delta_mm,3),'mm'],
+    ['dw','等效方厚 √(π/4)·d',fmt(dwSol.dw_mm,3),'mm'],
+    ['Δ','穿透比 dw/δ',fmt(dwSol.D,3),''],
+    ['kac','交流电阻系数(利兹)',fmt(dwSol.kac,3),''],
+    ['kac4','对照:实心1mm/4层',fmt(solid.kac,3),''],
+    ['n_strand','并联股数(推荐)',fmt(b.n_strand,0),'股']
+  ]);
+  document.getElementById('dowellNote').innerHTML='利兹线单股 '+fmt(cur.STRAND_D,2)+'mm ≪ 趋肤深度 '+fmt(dwSol.delta_mm,2)+'mm，穿透比 Δ='+fmt(dwSol.D,2)+'，交流系数几乎为 1；若改用 1mm 实心线绕 4 层，kac 会升到 '+fmt(solid.kac,2)+' 倍——这是绕组选型的关键依据。';
+
+  document.getElementById('bigT').textContent=fmt(b.dT,1);
+  document.getElementById('tbChk').innerHTML=
+    chkHTML(b.ok_sat,'饱和裕度 Bpk/Bsat < '+fmt(cur.S_SAT,2),fmt(b.sat_margin,3))+
+    chkHTML(b.ok_ku,'窗口利用率 Ku < '+fmt(cur.S_KU,2),fmt(b.ku,3))+
+    chkHTML(b.ok_dt,'稳态温升 ΔT < '+fmt(cur.DT_LIMIT,0)+'K',fmt(b.dT,1)+' K')+
+    chkHTML(el.lpu>=0.05&&el.lpu<=0.20,'标幺值 5%~20%',fmt(el.lpu_pct,1)+'%');
+  var sug=[];
+  if(!R.has_feasible) sug.push('全部方案均未通过校核：温升/'+
+    '磁密普遍偏高。建议增大磁芯叠堆数、降低电流密度 J、或改善散热（减小 Rth）。');
+  if(!b.ok_dt && b.Bdesign>=cur.BD_END-1e-6) sug.push('温升最优解落在 Bdesign 扫描上限（饱和边界）：继续提高磁密会撞饱和，需增加并联磁芯 n 或降低电流密度 J 才能进一步降温升。');
+  if(!b.ok_sat) sug.push('峰值磁密超饱和裕度：降低 Bdesign 或增加叠堆芯数 n。');
+  document.getElementById('sugg').innerHTML=sug.length?('调整建议：<br>· '+sug.join('<br>· ')):'全部校核通过，当前方案可用。';
+
+  var sh='<thead><tr><th>Bdesign(T)</th><th>叠堆n</th><th>匝数N</th><th>Bpk(T)</th><th>Ku</th><th>kac</th><th>铜损(W)</th><th>铁损(W)</th><th>总损耗(W)</th><th>ΔT(K)</th><th>校核</th></tr></thead><tbody>';
+  R.schemes.slice().sort(function(a,b){return a.dT-b.dT;}).forEach(function(s){
+    var isBest=(s===b);
+    sh+='<tr'+(isBest?' class="best"':'')+'>'+
+      '<td class="res'+(isBest?' best':'')+'">'+fmt(s.Bdesign,2)+(isBest?'<span class="tag">推荐</span>':'')+'</td>'+
+      '<td class="res">'+s.n+'</td><td class="res">'+s.N+'</td>'+
+      '<td class="res">'+fmt(s.bpk,3)+'</td><td class="res">'+fmt(s.ku,3)+'</td>'+
+      '<td class="res">'+fmt(s.kac,3)+'</td><td class="res">'+fmt(s.pcu,1)+'</td>'+
+      '<td class="res">'+fmt(s.pfe,1)+'</td><td class="res">'+fmt(s.ptotal,1)+'</td>'+
+      '<td class="res">'+fmt(s.dT,1)+'</td>'+
+      '<td><span class="chkbox '+(s.all_ok?'PASS':'FAIL')+'">'+(s.all_ok?'PASS':'FAIL')+'</span></td></tr>';
+  });
+  document.getElementById('tbSchemes').innerHTML=sh+'</tbody>';
+}
+function copyReport(){
+  var b=R.best, el=R.el;
+  var t=['磁性元件综合设计平台 · 结果',
+    '工况: P='+cur.P_KW+'kW Vll='+cur.VLL+'V Vdc='+cur.VDC+'V fs='+cur.FSW_KHZ+'kHz',
+    '电感 L='+fmt(el.L_uH,1)+'μH (标幺 '+fmt(el.lpu_pct,1)+'%), Ipk='+fmt(el.ipk,1)+'A',
+    '推荐: Bdesign='+fmt(b.Bdesign,2)+'T, '+b.n+'芯叠堆, N='+b.N+'匝, '+b.n_strand+'股并绕',
+    'Bpk='+fmt(b.bpk,3)+'T(裕度'+fmt(b.sat_margin,3)+'), Ku='+fmt(b.ku,3)+', kac='+fmt(b.kac,3),
+    '铜损='+fmt(b.pcu,1)+'W, 铁损='+fmt(b.pfe,1)+'W, 总损耗='+fmt(b.ptotal,1)+'W',
+    '温升 ΔT='+fmt(b.dT,1)+'K (上限'+cur.DT_LIMIT+'K), 判定:'+(b.all_ok?'PASS':'FAIL')].join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){alert('结果已复制');});
+  else alert(t);
+}
+document.getElementById('method').innerHTML=
+  '<p><b>① 电气</b>：<code>Iphase=P/(√3·Vll·pf)</code>，<code>ΔIpp=kripple·Iphase</code>，'+
+  '<code>L=Vdc/(4·fs·ΔIpp)</code>，标幺基准 <code>Lbase=Vll²/(P·2πfg)</code>。</p>'+
+  '<p><b>② 磁芯几何</b>：<code>Ae=(OD−ID)/2·H·kstack</code>，<code>le=π(OD+ID)/2</code>，'+
+  '<code>Ve=Ae·le</code>；叠堆窗口按 <code>ID×(n·H)</code> 矩形通道。</p>'+
+  '<p><b>③ 安匝分配</b>：<code>N·n=L·Ipk/(Bdesign·Ae)</code>；窗口约束 '+
+  '<code>N·Awire ≤ Ku·ID·(n·H)</code> 定最小叠堆数 n，再取整定匝数 N，回算实际 Bpk、Ku。</p>'+
+  '<p><b>④ 绕组交流效应（Dowell 1966）</b>：<code>δ=√(2ρ/(ωμ0))</code>，圆线等效 '+
+  '<code>dw=√(π/4)·d</code>，<code>Δ=dw/δ</code>，'+
+  '<code>Fr=Δ[ν3+(2/3)(m²−1)ν2]</code>，其中 '+
+  '<code>ν2=(sinhΔ−sinΔ)/(coshΔ+cosΔ)</code>，'+
+  '<code>ν3=(sinh2Δ+sin2Δ)/(cosh2Δ−cos2Δ)</code>。第一项趋肤、第二项邻近，按 m² 增长；'+
+  'Δ&lt;0.05 用级数 <code>Fr≈1+(2/9)(m²−1)Δ²</code> 避免 0/0。</p>'+
+  '<p><b>⑤ 损耗</b>：铜损 <code>Pcu=Irms²·kac·Rdc</code>（Rdc 用热态电阻，迭代 3 次收敛）；'+
+  '铁损 Steinmetz <code>Pv=k·Bac^α·f^β</code> [mW/cm³]，<code>Pfe=Pv·n·Ve/1000</code>。</p>'+
+  '<p><b>⑥ 热</b>：<code>ΔT=(Pcu+Pfe)·Rth</code>。</p>'+
+  '<p><b>⑦ 多方案优化</b>：扫描 Bdesign（0.30~0.78T），每方案全校核，'+
+  '在可行方案中取温升最小者。工程洞察：大电流工况铜损主导、铁损可忽略，'+
+  '温升最优常落在饱和边界附近——降匝数降铜损与饱和裕度相互制约，需增加并联磁芯或降电流密度破局。</p>'+
+  '<p class="small">材料常数：Kool Mu 60μ Bsat=1.0T，Steinmetz k=18.01/α=1.602/β=1.401（Magnetics 手册，B:T f:kHz）。'+
+  'OD/ID/H、Rth 为工程参考值，需按实际料号与散热条件核对。网页计算与 Python 内核逐项交叉验证一致。</p>';
+loadDemo();
+</script>
+</body>
+</html>

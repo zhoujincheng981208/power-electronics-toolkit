@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>并网电流环 PI 整定助手</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:20px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+    padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  .tab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:92px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8}
+  .full{grid-column:1/-1}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .note{color:var(--sub);font-size:12px;padding:10px 16px 14px;line-height:1.7}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .bigres{text-align:center;padding:12px}
+  .bigres .num{font-size:30px;font-weight:700;color:var(--acc);font-family:Consolas,monospace}
+  .bigres .lbl{font-size:12px;color:var(--sub)}
+  .small{font-size:11px;color:var(--sub)}
+  .sugg{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;
+    font-size:12px;color:#7c5a06;margin-top:14px;line-height:1.7}
+  .scheme{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  .scheme.rec{border:2px solid var(--acc)}
+  .scheme h3{margin:0 0 8px;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .badge{font-size:11px;padding:2px 8px;border-radius:12px;background:var(--panel2);color:var(--sub)}
+  .scheme.rec .badge{background:var(--acc);color:#fff}
+  .kv{display:flex;flex-wrap:wrap;gap:8px}
+  .kv div{background:var(--calc);border-radius:6px;padding:6px 10px;flex:1;min-width:70px}
+  .kv .k{font-size:11px;color:var(--sub)}
+  .kv .v{font-family:Consolas,monospace;font-size:15px;color:var(--txt)}
+  .plot{width:100%;height:auto}
+  .invalid{color:var(--fail);font-size:13px;font-weight:600;padding:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>并网电流环 PI 整定助手</h1>
+  <div class="sub">三相并网逆变器 / PCS 电流内环　·　填物理参数 → 自动生成对象传函 → 复频域整定 Kp/Ki → 频域与时域双验证</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动判定）</span>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="bar">
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="small" id="hint"></span>
+  </div>
+  <div class="grid">
+    <div>
+      <div class="card in">
+        <h2>输入区 · 功率级与目标</h2>
+        <table><tbody id="tbIn"></tbody></table>
+      </div>
+      <div class="card chk" style="margin-top:20px">
+        <h2>校核区 · 可行性判定</h2>
+        <table><tbody id="tbChk"></tbody></table>
+        <div id="sugg" class="sugg"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card calc">
+        <h2>三方案对比（保守 / 推荐 / 激进）</h2>
+        <div id="schemes"></div>
+      </div>
+      <div class="card calc" style="margin-top:20px">
+        <h2>频域：开环伯德图（推荐方案）</h2>
+        <svg id="bode" class="plot" viewBox="0 0 560 210" role="img" aria-label="开环伯德图示意"></svg>
+      </div>
+    </div>
+  </div>
+
+  <details open>
+    <summary>计算方法与工程依据（点击展开 / 收起）</summary>
+    <div id="method"></div>
+  </details>
+</div>
+
+<!-- ============ 纯计算内核（与 calc_core.py 逐项一致，verify_web.js 抽取此处校验） ============ -->
+<script id="core">
+function quadRoots(a,b,c){
+  var d=b*b-4*a*c;
+  if(d>=0){ var s=Math.sqrt(d); return [{re:(-b+s)/(2*a),im:0},{re:(-b-s)/(2*a),im:0}]; }
+  var s=Math.sqrt(-d); return [{re:-b/(2*a),im:s/(2*a)},{re:-b/(2*a),im:-s/(2*a)}];
+}
+function timeDomain(den,z){
+  var a3=den[0],a2=den[1],a1=den[2];
+  var q1=a2-a3*z, q0=a1-q1*z;
+  var rr=quadRoots(a3,q1,q0);
+  var cp=rr.filter(function(r){return r.im>1e-9;});
+  if(!cp.length){
+    var mn=1e18; rr.forEach(function(r){ if(Math.abs(r.re)>1e-12) mn=Math.min(mn,Math.abs(r.re)); });
+    return {ov:0, ts:4/mn};
+  }
+  var r=cp[0], wn=Math.sqrt(r.re*r.re+r.im*r.im), zeta=-r.re/wn;
+  zeta=Math.min(Math.max(zeta,1e-4),0.999);
+  var ov=Math.exp(-Math.PI*zeta/Math.sqrt(1-zeta*zeta))*100;
+  var ts=4/(zeta*wn)*1000;
+  return {ov:ov, ts:ts};
+}
+function tuneOne(L,R,Td,fc,PMdeg){
+  var wc=2*Math.PI*fc;
+  var ph_gp=Math.atan2(wc*L,R)*180/Math.PI;
+  var ph_dl=Math.atan(wc*Td)*180/Math.PI;
+  var pm_max=180-ph_gp-ph_dl;
+  var phi=-180+PMdeg+ph_gp+ph_dl;
+  var feasible=(phi>-90 && phi<=0 && pm_max>0);
+  if(!feasible){
+    return {feasible:false, Kp:null, Ki:null, pm_max:pm_max, phi:phi,
+      ph_gp:ph_gp, ph_dl:ph_dl, PM_req:PMdeg, fc:fc,
+      reason:(phi>0?'相位裕度要求超过该频率下最大值(需微分)':'目标频率过低/参数异常'),
+      ov:null, ts:null, PM_act:null};
+  }
+  var phir=phi*Math.PI/180;
+  var Kp=Math.cos(phir)*Math.sqrt(R*R+Math.pow(wc*L,2))*Math.sqrt(1+Math.pow(wc*Td,2));
+  var Ki=Kp*wc*Math.tan(-phir);
+  var den=[L*Td, L+R*Td, R+Kp, Ki];
+  var td=timeDomain(den, Ki/Kp);
+  var mag_gp=1/Math.sqrt(R*R+Math.pow(wc*L,2));
+  var mag_dl=1/Math.sqrt(1+Math.pow(wc*Td,2));
+  var mag_pi=Math.sqrt(Kp*Kp+Math.pow(Ki/wc,2));
+  var mag_ol=mag_pi*mag_gp*mag_dl;
+  var phase_ol=-Math.atan2(Ki/wc,Kp)*180/Math.PI - ph_gp - ph_dl;
+  var PM_act=180+phase_ol;
+  return {feasible:true, Kp:Kp, Ki:Ki, pm_max:pm_max, phi:phi,
+    ph_gp:ph_gp, ph_dl:ph_dl, PM_req:PMdeg, fc:fc,
+    mag_ol:mag_ol, PM_act:PM_act, ov:td.ov, ts:td.ts, reason:''};
+}
+function lclMetrics(L1,L2,Cf,Rd,fg,fsw,fc){
+  var Leq=L1*L2/(L1+L2);
+  var fres=1/(2*Math.PI*Math.sqrt(Leq*Cf));
+  var Zres=Math.sqrt(Leq/Cf);
+  var zeta=Zres>0? Rd/(2*Zres):0;
+  var ratio=fc>0? fres/fc:0;
+  return {Leq:Leq,fres:fres,Zres:Zres,zeta:zeta,ratio:ratio,
+    chk_range:(10*fg<fres && fres<0.5*fsw),
+    chk_sep:(ratio>=2.0),
+    chk_damp:(zeta>=0.15 && zeta<=1.0)};
+}
+function solve(p){
+  var L=(p.filter==='LCL')? p.L1_uh*1e-6 : p.L_uh*1e-6;
+  var R=p.R_ohm + ((p.filter==='LCL')? p.R_esr_extra : 0);
+  var fsw=p.fsw_khz*1e3, Td=p.delay_Tsw/fsw;
+  var fc0=p.fc_hz, pm0=p.PM_deg;
+  var lcl=null;
+  if(p.filter==='LCL'){
+    lcl=lclMetrics(p.L1_uh*1e-6, p.L2_uh*1e-6, p.Cf_uf*1e-6,
+                  p.Rd_ohm, p.fg_hz, fsw, fc0);
+  }
+  var schemes={
+    '保守': tuneOne(L,R,Td,fc0*0.7, Math.min(pm0+10,75)),
+    '推荐': tuneOne(L,R,Td,fc0,     pm0),
+    '激进': tuneOne(L,R,Td,fc0*1.4, Math.max(pm0-10,20))
+  };
+  return {L:L,R:R,Td:Td,fsw:fsw,schemes:schemes,pm_max_rec:schemes['推荐'].pm_max,lcl:lcl};
+}
+var DEMO={filter:'L',L_uh:250,L1_uh:250,L2_uh:50,Cf_uf:270,Rd_ohm:0.5,fg_hz:50,
+  R_ohm:0.05,R_esr_extra:0.02, fsw_khz:5,delay_Tsw:1.5,fc_hz:500,PM_deg:45};
+</script>
+
+<script>
+var FIELDS=[
+  ['L_uh','滤波电感 L','μH','L 滤波模式的并网电感'],
+  ['L1_uh','逆变侧电感 L1','μH','LCL 模式：变流器侧电感'],
+  ['L2_uh','网侧电感 L2','μH','LCL 模式：电网侧电感'],
+  ['Cf_uf','滤波电容 Cf','μF','LCL 模式：并/串联滤波电容'],
+  ['Rd_ohm','阻尼电阻 Rd','Ω','LCL 模式：Cf 串联阻尼电阻'],
+  ['fg_hz','电网频率 fg','Hz','LCL 模式：谐振下限 =10·fg'],
+  ['R_ohm','等效电阻 R','Ω','电感等效串联电阻'],
+  ['R_esr_extra','附加等效 R','Ω','LCL 模式：有源阻尼折算的附加阻尼'],
+  ['fsw_khz','开关频率 fsw','kHz','用于算延迟 Td = delay×Tsw'],
+  ['delay_Tsw','控制延迟','Tsw','PWM+采样总延迟，常取 1.5'],
+  ['fc_hz','目标交越频率 fc','Hz','推荐方案的开环带宽'],
+  ['PM_deg','目标相位裕度 PM','°','工程常取 45°~60°'],
+];
+var LCL_ONLY=['L1_uh','L2_uh','Cf_uf','Rd_ohm','fg_hz','R_esr_extra'];
+var L_ONLY=['L_uh'];
+var cur=Object.assign({},DEMO), R=null;
+function fmt(v,d){ d=(d===undefined)?3:d; return Number(v).toFixed(d); }
+
+function buildTabs(){
+  var h='';
+  [['L','L 滤波电流环'],['LCL','LCL 电流环(三元件)']].forEach(function(t){
+    h+='<button class="tab '+(cur.filter===t[0]?'active':'')+'" onclick="switchFilter(\''+t[0]+'\')">'+t[1]+'</button>';
+  });
+  document.getElementById('tabs').innerHTML=h;
+}
+function switchFilter(f){ cur.filter=f; buildTabs(); buildInputs(); recalc(); }
+
+function buildInputs(){
+  var h='';
+  FIELDS.forEach(function(f){
+    var show=(cur.filter==='L') ? (LCL_ONLY.indexOf(f[0])<0) : (L_ONLY.indexOf(f[0])<0);
+    if(!show) return;
+    h+='<tr><td class="sym">'+f[0]+'</td><td>'+f[1]+'<div class="small">'+f[3]+'</div></td>'+
+       '<td class="val"><input type="number" step="any" id="i_'+f[0]+'" value="'+cur[f[0]]+'"></td>'+
+       '<td class="unit">'+f[2]+'</td></tr>';
+  });
+  document.getElementById('tbIn').innerHTML=h;
+  FIELDS.forEach(function(f){
+    var el=document.getElementById('i_'+f[0]);
+    if(el) el.addEventListener('input',function(){
+      var v=parseFloat(this.value); if(!isNaN(v)){ cur[f[0]]=v; recalc(); }
+    });
+  });
+}
+
+function recalc(){
+  R=solve(cur);
+  var rec=R.schemes['推荐'];
+  document.getElementById('hint').textContent =
+    'L='+fmt(R.L*1e6,0)+'μH  R='+fmt(R.R,3)+'Ω  Td='+fmt(R.Td*1e6,0)+'μs  ·  推荐方案最大可达 PM='+fmt(R.pm_max_rec,1)+'°'
+    + (R.lcl? '  ·  fres='+fmt(R.lcl.fres,0)+'Hz  ζ='+fmt(R.lcl.zeta,3) : '');
+
+  // 校核区
+  var chk=[], sug=[];
+  var pmOK=rec.feasible && rec.PM_req<=rec.pm_max+0.5;
+  chk.push(['推荐方案可行', pmOK, rec.feasible? ('目标 PM '+fmt(rec.PM_req,0)+'° ≤ 最大 '+fmt(rec.pm_max,1)+'°') : rec.reason]);
+  if(!pmOK && rec.feasible===false) sug.push('目标相位裕度超过当前 fc 下最大可达值（'+fmt(rec.pm_max,1)+'°）：降低目标 PM、降低交越频率 fc，或减小控制延迟 Td（提升 fsw）。');
+  Object.keys(R.schemes).forEach(function(n){
+    var s=R.schemes[n];
+    if(s.feasible && s.ov>35) sug.push(n+'方案超调 '+fmt(s.ov,1)+'% 偏大（>35%）：适当提高目标 PM。');
+  });
+  // LCL 谐振三项校核
+  if(R.lcl){
+    var q=R.lcl;
+    chk.push(['谐振频率区间 10fg<fres<0.5fsw', q.chk_range,
+      'fres='+fmt(q.fres,0)+'Hz，要求 '+fmt(10*cur.fg_hz,0)+'~'+fmt(0.5*R.fsw,0)+'Hz']);
+    chk.push(['谐振/交越分离 fres/fc≥2', q.chk_sep,
+      'fres/fc='+fmt(q.ratio,2)+'（fres='+fmt(q.fres,0)+'Hz, fc='+fmt(cur.fc_hz,0)+'Hz）']);
+    chk.push(['阻尼比 0.15≤ζ≤1.0', q.chk_damp,
+      'ζ='+fmt(q.zeta,3)+'，Zres='+fmt(q.Zres,3)+'Ω，Rd='+fmt(cur.Rd_ohm,3)+'Ω']);
+    if(!q.chk_range) sug.push('谐振频率 fres='+fmt(q.fres,0)+'Hz 超出 [10fg, 0.5fsw]：增大 L1/L2/Cf 降 fres，或减小它们升 fres（谐振过高易混叠、过低易与工频/环流耦合）。');
+    if(!q.chk_sep) sug.push('fres/fc='+fmt(q.ratio,2)+'<2，谐振峰靠近交越点会吃掉相位裕度：降低目标 fc，或调整 L/C 抬高 fres。');
+    if(!q.chk_damp) sug.push('阻尼比 ζ='+fmt(q.zeta,3)+' 不在 [0.15,1]：调整串联阻尼电阻 Rd（或确认采用电容电流有源阻尼时此项按等效处理）。');
+  }
+  var ch='';
+  chk.forEach(function(c){
+    ch+='<tr><td>'+c[0]+'</td><td class="val"><span class="chkbox '+(c[1]?'PASS':'FAIL')+'">'+(c[1]?'PASS':'FAIL')+'</span></td></tr>'+
+        '<tr><td colspan="2" class="unit">'+c[2]+'</td></tr>';
+  });
+  document.getElementById('tbChk').innerHTML=ch;
+  var sd=document.getElementById('sugg');
+  if(sug.length){ sd.innerHTML='<b>调整建议：</b><br>'+sug.map(function(s,i){return (i+1)+'. '+s;}).join('<br>'); sd.style.display='block'; }
+  else sd.style.display='none';
+
+  // 三方案
+  var sh='';
+  ['保守','推荐','激进'].forEach(function(n){
+    var s=R.schemes[n];
+    sh+='<div class="scheme '+(n==='推荐'?'rec':'')+'"><h3>'+n+' <span class="badge">fc='+fmt(s.fc,0)+'Hz · PM目标='+fmt(s.PM_req,0)+'°</span></h3>';
+    if(!s.feasible){
+      sh+='<div class="invalid">不可行：'+s.reason+'（该频率最大 PM='+fmt(s.pm_max,1)+'°）</div>';
+    } else {
+      sh+='<div class="kv">'+
+        '<div><div class="k">Kp</div><div class="v">'+fmt(s.Kp,4)+'</div></div>'+
+        '<div><div class="k">Ki</div><div class="v">'+fmt(s.Ki,1)+'</div></div>'+
+        '<div><div class="k">实际PM</div><div class="v">'+fmt(s.PM_act,1)+'°</div></div>'+
+        '<div><div class="k">超调</div><div class="v">'+fmt(s.ov,1)+'%</div></div>'+
+        '<div><div class="k">调节时间</div><div class="v">'+fmt(s.ts,2)+'ms</div></div>'+
+        '</div>';
+    }
+    sh+='</div>';
+  });
+  document.getElementById('schemes').innerHTML=sh;
+
+  drawBode(rec);
+}
+
+function drawBode(s){
+  var svg=document.getElementById('bode');
+  if(!s.feasible){ svg.innerHTML='<text x="280" y="105" text-anchor="middle" fill="#dc2626" font-size="13">该方案不可行，无伯德图</text>'; return; }
+  var W=560,H=210, L=48,Rr=16,T=16,B=34;
+  var x0=L,y0=H-B,w=W-L-Rr,h=H-T-B;
+  var fmin=10,fmax=10000;
+  function X(f){ return x0 + (Math.log10(f)-Math.log10(fmin))/(Math.log10(fmax)-Math.log10(fmin))*w; }
+  function Ymag(db){ return y0 - (db+40)/80*h; } // -40..40 dB
+  var g='';
+  // 网格
+  [10,100,1000,10000].forEach(function(f){ g+='<line x1="'+X(f)+'" y1="'+T+'" x2="'+X(f)+'" y2="'+y0+'" stroke="#e2e8f0" stroke-width="0.5"/><text x="'+X(f)+'" y="'+(y0+16)+'" text-anchor="middle" font-size="10" fill="#64748b">'+f+'</text>'; });
+  [-40,-20,0,20,40].forEach(function(db){ g+='<line x1="'+x0+'" y1="'+Ymag(db)+'" x2="'+(x0+w)+'" y2="'+Ymag(db)+'" stroke="#e2e8f0" stroke-width="0.5"/><text x="'+(x0-6)+'" y="'+(Ymag(db)+3)+'" text-anchor="end" font-size="10" fill="#64748b">'+db+'</text>'; });
+  var Kp=s.Kp,Ki=s.Ki;
+  var q=R.lcl;
+  // LCL 模式：叠加真实三元件对象谐振峰 |G_LCL(jw)|（控制到网侧电流），展示谐振尖峰
+  if(q){
+    var L1=cur.L1_uh*1e-6, L2=cur.L2_uh*1e-6, Cf=cur.Cf_uf*1e-6, Rd=cur.Rd_ohm;
+    var rp=[];
+    for(var i=0;i<=220;i++){
+      var f=fmin*Math.pow(fmax/fmin,i/220), wc=2*Math.PI*f;
+      // G(s)=1/[L1·L2·Cf·s³ + Rd·Cf·(L1+L2)·s² + (L1+L2)·s]  (略去 R 小量)
+      var re=Rd*Cf*(L1+L2)*wc*wc;                 // -s² 项实部
+      var im=(L1+L2)*wc - L1*L2*Cf*wc*wc*wc;      // s 项与 s³ 项
+      var mag=1/Math.sqrt(re*re+im*im);
+      var db=20*Math.log10(mag);
+      rp.push(X(f).toFixed(1)+','+Ymag(Math.max(-40,Math.min(40,db))).toFixed(1));
+    }
+    g+='<polyline points="'+rp.join(' ')+'" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>';
+  }
+  // 开环幅值曲线 |L(jw)| = Kp*sqrt(1+(Ki/w)^2)/... 用对象+延迟
+  var pts=[];
+  for(var i=0;i<=120;i++){
+    var f=fmin*Math.pow(fmax/fmin,i/120), wc=2*Math.PI*f;
+    var magPi=Math.sqrt(Kp*Kp+Math.pow(Ki/wc,2));
+    var magGp=1/Math.sqrt(Math.pow(R.R,2)+Math.pow(wc*R.L,2));
+    var magDl=1/Math.sqrt(1+Math.pow(wc*R.Td,2));
+    var db=20*Math.log10(magPi*magGp*magDl);
+    pts.push(X(f).toFixed(1)+','+Ymag(Math.max(-40,Math.min(40,db))).toFixed(1));
+  }
+  g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2563eb" stroke-width="2"/>';
+  // 交越频率标记
+  var xc=X(s.fc);
+  g+='<line x1="'+xc+'" y1="'+T+'" x2="'+xc+'" y2="'+y0+'" stroke="#dc2626" stroke-width="1" stroke-dasharray="4 3"/>';
+  g+='<text x="'+(xc+4)+'" y="'+(T+12)+'" font-size="11" fill="#dc2626">fc='+fmt(s.fc,0)+'Hz</text>';
+  // LCL 谐振峰标记
+  if(q){
+    var xr=X(q.fres);
+    g+='<line x1="'+xr+'" y1="'+T+'" x2="'+xr+'" y2="'+y0+'" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 3"/>';
+    g+='<text x="'+(xr+4)+'" y="'+(T+26)+'" font-size="11" fill="#b45309">fres='+fmt(q.fres,0)+'Hz</text>';
+  }
+  // 图例
+  var ly=T+14;
+  g+='<line x1="'+(x0+8)+'" y1="'+ly+'" x2="'+(x0+26)+'" y2="'+ly+'" stroke="#2563eb" stroke-width="2"/><text x="'+(x0+30)+'" y="'+(ly+4)+'" font-size="10" fill="#1e2b3c">开环(整定用)</text>';
+  if(q){ g+='<line x1="'+(x0+120)+'" y1="'+ly+'" x2="'+(x0+138)+'" y2="'+ly+'" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3"/><text x="'+(x0+142)+'" y="'+(ly+4)+'" font-size="10" fill="#b45309">LCL对象谐振</text>'; }
+  svg.innerHTML=g;
+}
+
+function loadDemo(){ cur=Object.assign({},DEMO); buildTabs(); buildInputs(); recalc(); }
+function copyReport(){
+  var L=['并网电流环 PI 整定结果','滤波='+cur.filter+' L='+fmt(R.L*1e6,0)+'uH R='+fmt(R.R,3)+'ohm Td='+fmt(R.Td*1e6,0)+'us fsw='+fmt(R.fsw/1e3,1)+'kHz'];
+  ['保守','推荐','激进'].forEach(function(n){
+    var s=R.schemes[n];
+    L.push('['+n+'] fc='+fmt(s.fc,0)+'Hz '+(s.feasible? ('Kp='+fmt(s.Kp,4)+' Ki='+fmt(s.Ki,1)+' PM='+fmt(s.PM_act,1)+'° 超调='+fmt(s.ov,1)+'% 调节='+fmt(s.ts,2)+'ms') : ('不可行:'+s.reason)));
+  });
+  navigator.clipboard.writeText(L.join('\n')).then(function(){ alert('结果已复制'); });
+}
+
+document.getElementById('method').innerHTML=
+  '<p><b>场景</b>：三相并网逆变器 / PCS 的并网电流内环。输入是 L、R、开关频率、延迟等物理参数，工具自动生成被控对象传函，不让用户手写 G(s)。</p>'+
+  '<p><b>对象建模</b>：功率级 <code>Gp(s)=1/(Ls+R)</code>；数字控制延迟 <code>Gd(s)=1/(1+s·Td)</code>（一阶近似，Td≈1.5·Tsw）；开环 <code>L(s)=(Kp+Ki/s)·Gp·Gd</code>。<b>LCL 模式</b>填 L1/L2/Cf/Rd 三元件：谐振特性按真实网络算 <code>Leq=L1·L2/(L1+L2)</code>、<code>fres=1/(2π√(Leq·Cf))</code>、<code>Zres=√(Leq/Cf)</code>、<code>ζ=Rd/(2·Zres)</code>，并校核谐振区间、与交越频率分离度、阻尼比；<b>Kp/Ki 整定仍基于有源阻尼后的 L1 等效对象</b>（工程降阶，可靠），三元件校核独立计算、不改变整定结果。伯德图中蓝色实线为整定用开环幅值，橙色虚线为真实 LCL 对象幅频（可见谐振尖峰）。</p>'+
+  '<p><b>整定方法</b>：在目标交越频率 wc 处要求开环幅值=1、相位=−180°+PM，反解 <code>φPI=−180°+PM+atan(wc·L/R)+atan(wc·Td)</code>，<code>Kp=cos(φPI)·√(R²+(wcL)²)·√(1+(wcTd)²)</code>，<code>Ki=Kp·wc·tan(−φPI)</code>。</p>'+
+  '<p><b>可行性</b>：PI 只能提供 0~−90° 相位；若 φPI&gt;0 表示目标 PM 超过该频率下最大可达值 <code>PMmax=180°−atan(wcL/R)−atan(wcTd)</code>，需微分才能实现——此时判为不可行并给出降 PM / 降 fc / 减延迟的建议。这是人工试凑最容易忽略的点。</p>'+
+  '<p><b>时域指标</b>：闭环特征方程 <code>L·Td·s³+(L+R·Td)s²+(R+Kp)s+Ki=0</code>，除以 PI 零点 (s+Ki/Kp) 近似降为二阶，取共轭主导极点的阻尼比 ζ 算超调 <code>exp(−πζ/√(1−ζ²))</code> 与调节时间 <code>4/(ζωn)</code>（±2%）。</p>'+
+  '<p class="small">注：本工具为工程初设与量级校验，延迟用一阶近似、未含电阻随频率变化、电网阻抗与锁相环耦合、离散化具体实现，最终以仿真与实测为准。Kp/Ki 为连续域参数，写入 MCU 时需按所用离散化方法转换。</p>';
+
+loadDemo();
+</script>
+</body>
+</html>

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANPC / I-NPC 三电平器件应力与损耗评估</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1320px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:16px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:18px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  button,select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover,select:hover{border-color:var(--acc)}
+  label.sw-lbl{font-size:12px;color:var(--sub);display:inline-flex;align-items:center;gap:6px}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+    padding:9px 20px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+  .tab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:1000px){.grid3,.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05);margin-bottom:18px}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  .pad{padding:6px 16px 14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:82px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8;font-weight:600}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .bigres{text-align:center;padding:16px}
+  .bigres .num{font-size:30px;font-weight:700;color:var(--acc);font-family:Consolas,monospace}
+  .bigres .lbl{font-size:12px;color:var(--sub);margin-top:2px}
+  .barwrap{padding:14px 16px}
+  .barrow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px}
+  .barrow .lb{width:96px;color:var(--sub);text-align:right}
+  .barrow .track{flex:1;background:var(--panel2);border-radius:5px;height:18px;position:relative;overflow:hidden}
+  .barrow .fill{height:100%;border-radius:5px}
+  .barrow .vl{width:78px;font-family:Consolas,monospace;text-align:right}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;background:var(--acc);color:#fff;margin-left:6px}
+  .tag.g{background:#3fae74}.tag.o{background:#d97706}
+  .cmp td.best{background:#ecfbf3;font-weight:700}
+  .cmp td.worst{background:#fef2f2;color:var(--fail)}
+  details{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .small{font-size:11px;color:var(--sub)}
+  .topo-note{font-size:12px;color:var(--sub);background:var(--panel2);border-left:3px solid var(--acc);
+    padding:10px 14px;border-radius:6px;margin-bottom:16px;line-height:1.7}
+
+  /* ===== 高大上增强层 ===== */
+  .hero{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  @media(max-width:900px){.hero{grid-template-columns:1fr 1fr}}
+  .kpi{background:linear-gradient(150deg,#ffffff,#f6f9fe);border:1px solid var(--line);border-radius:14px;
+    padding:15px 18px;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.06);
+    min-width:0}
+  .kpi:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--acc)}
+  .kpi.good:before{background:linear-gradient(#34d399,#059669)}
+  .kpi.warn:before{background:linear-gradient(#fbbf24,#d97706)}
+  .kpi.bad:before{background:linear-gradient(#f87171,#dc2626)}
+  .kpi .k-lbl{font-size:11px;color:var(--sub);letter-spacing:.6px;text-transform:uppercase}
+  .kpi .k-val{font-size:26px;font-weight:700;color:var(--txt);font-family:Consolas,monospace;line-height:1.15;margin-top:5px;white-space:nowrap}
+  .kpi .k-val em{font-style:normal;font-size:12px;color:var(--sub);font-weight:400;margin-left:3px}
+  .kpi .k-sub{font-size:11px;color:var(--sub);margin-top:4px}
+
+  .topo-wrap{background:linear-gradient(160deg,#fcfdff,#eef4fb);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+  .topo-svg{width:100%;height:auto;display:block;max-height:360px}
+  .dev-node{cursor:default}
+  .dev-node rect,.dev-node polygon,.dev-node path{transition:.25s}
+  .dev-node:hover rect,.dev-node:hover polygon,.dev-node:hover path{filter:brightness(1.12) drop-shadow(0 0 6px rgba(37,99,235,.5))}
+  .svg-lbl{font-family:Consolas,"Microsoft YaHei",monospace;font-size:12px;fill:var(--txt)}
+  .svg-sub{font-family:Consolas,"Microsoft YaHei",monospace;font-size:10px;fill:#fff}
+  .svg-bus{stroke:#94a3b8;stroke-width:2.5;fill:none}
+  .svg-cap{stroke:#475569;stroke-width:2.5}
+
+  .heat-legend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--sub);margin-top:8px}
+  .heat-grad{height:9px;flex:1;border-radius:5px;background:linear-gradient(90deg,#3b82f6,#10b981,#eab308,#dc2626)}
+  .heatrow{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px}
+  .heatrow .hname{width:110px;color:var(--sub);text-align:right}
+  .heatrow .htrack{flex:1;position:relative;height:22px;border-radius:6px;
+    background:linear-gradient(90deg,#3b82f6,#10b981,#eab308,#dc2626);opacity:.92}
+  .heatrow .hmark{position:absolute;top:-3px;width:3px;height:28px;background:#0f172a;border-radius:2px;
+    box-shadow:0 0 0 2px #fff}
+  .heatrow .hval{width:74px;text-align:right;font-family:Consolas,monospace;font-weight:700}
+
+  .radar-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .radar-legend{font-size:12px;color:var(--sub);line-height:2}
+  .radar-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ANPC / I-NPC 三电平器件应力与损耗评估</h1>
+  <div class="sub">拓扑可切换（ANPC 有源箝位 / I-NPC 二极管箝位）· 调制可切换（SVPWM / SPWM）· 电压应力 → 电流应力 → 损耗分解 → 结温闭环 → 中点平衡 → 横向对比</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动判定）</span>
+  </div>
+
+  <div class="bar">
+    <label class="sw-lbl">拓扑 <select id="selTopo" onchange="onSwitch()">
+      <option value="ANPC">ANPC（有源中点箝位）</option>
+      <option value="INPC">I-NPC（二极管箝位）</option>
+    </select></label>
+    <label class="sw-lbl">调制 <select id="selMod" onchange="onSwitch()">
+      <option value="SVPWM">SVPWM</option>
+      <option value="SPWM">SPWM</option>
+    </select></label>
+    <label class="sw-lbl">器件 <select id="selDev" onchange="onSwitch()">
+      <option value="SiC">SiC MOSFET</option>
+      <option value="IGBT">IGBT</option>
+    </select></label>
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="small" id="hint"></span>
+  </div>
+
+  <div class="topo-note" id="topoNote"></div>
+
+  <div class="hero" id="hero"></div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="panels"></div>
+</div>
+
+<!-- ============ 核心计算脚本（供 verify_web.js 抽取比对，勿改动结构）============ -->
+<script id="core">
+var DEFAULT = {
+  VDC:800.0, IRMS:180.0, PF:0.99, M:0.90, FSW:10.0, TA:40.0,
+  RTH_JC:0.15, RTH_CS:0.05, RTH_SA:0.20,
+  N_LEVEL:3, K_OV:1.15, F_LINE:50.0,
+  VREF:800.0, IREF:200.0, TREF:25.0,
+  SIC_RDS25:8.0, SIC_RDS_TCO:0.0045,
+  SIC_EON:1.20, SIC_EOFF:0.80, SIC_ERR:0.25,
+  SIC_KV:1.3, SIC_KI:0.9, SIC_ALPHA:0.002,
+  SIC_VRATED:1200.0, SIC_TJMAX:175.0,
+  IGBT_VCE0:0.9, IGBT_RCE:4.0,
+  IGBT_EON:3.5, IGBT_EOFF:4.2, IGBT_ERR:1.8,
+  IGBT_KV:1.3, IGBT_KI:0.9, IGBT_ALPHA:0.004,
+  IGBT_VRATED:1200.0, IGBT_TJMAX:150.0,
+  DERATE_MAX:0.80, TJ_MARGIN:10.0, VN_MAX:5.0
+};
+var GROUPS = {
+  ANPC:[ ['outer',1.00,false,'f_line'], ['inner',0.92,false,'fsw'], ['clamp',0.60,false,'fsw'] ],
+  INPC:[ ['outer',1.00,false,'fsw'], ['inner',0.92,false,'fsw'], ['clamp',0.55,true,'f_line'] ]
+};
+function devParams(p, device){
+  if(device==='SiC') return {cond:'sic',eon:p.SIC_EON,eoff:p.SIC_EOFF,err:p.SIC_ERR,
+    kv:p.SIC_KV,ki:p.SIC_KI,alpha:p.SIC_ALPHA,vrated:p.SIC_VRATED,tjmax:p.SIC_TJMAX,
+    rds25:p.SIC_RDS25,rds_tco:p.SIC_RDS_TCO,vce0:0,rce:0};
+  return {cond:'igbt',eon:p.IGBT_EON,eoff:p.IGBT_EOFF,err:p.IGBT_ERR,
+    kv:p.IGBT_KV,ki:p.IGBT_KI,alpha:p.IGBT_ALPHA,vrated:p.IGBT_VRATED,tjmax:p.IGBT_TJMAX,
+    rds25:0,rds_tco:0,vce0:p.IGBT_VCE0,rce:p.IGBT_RCE};
+}
+function solve(params, topo, mod, device){
+  var p={}; for(var k in DEFAULT) p[k]=DEFAULT[k];
+  if(params) for(var k2 in params) p[k2]=params[k2];
+  var dp=devParams(p,device);
+  var Vdc=p.VDC, Irms=p.IRMS, pf=p.PF, m=p.M, fsw=p.FSW, Ta=p.TA;
+  var rth=p.RTH_JC+p.RTH_CS+p.RTH_SA;
+  var Ipk=Math.sqrt(2.0)*Irms;
+  var Vcell=Vdc/(p.N_LEVEL-1.0);
+  var Vstress=Vcell*p.K_OV;
+  var mod_cap=(mod==='SVPWM')?1.155:1.0;
+  var overmod=m>mod_cap;
+  var kI_base=0.55+0.25*(m/mod_cap)*pf;
+  var k_np=(mod==='SVPWM')?0.5:1.0;
+  var dVn_pct=Math.abs(1.0-pf)*m*k_np*100.0;
+  var ok_np=dVn_pct<p.VN_MAX;
+  var gl=GROUPS[topo];
+  var groups={};
+  for(var i=0;i<gl.length;i++){
+    var name=gl[i][0], pos=gl[i][1], isDiode=gl[i][2], fsKey=gl[i][3];
+    var fGroup=(fsKey==='f_line')?(p.F_LINE/1000.0):fsw;
+    var IrmsDev=Irms*kI_base*pos;
+    var IavgDev=IrmsDev*0.9;
+    var Tj=Ta+30.0, Pcond=0,eon=0,eoff=0,errE=0,Psw=0,Prr=0,Ptotal=0;
+    for(var it=0;it<60;it++){
+      if(dp.cond==='sic'){
+        var rds=dp.rds25*1e-3*(1.0+dp.rds_tco*(Tj-25.0));
+        Pcond=rds*IrmsDev*IrmsDev;
+      }else{
+        Pcond=dp.vce0*IavgDev+dp.rce*1e-3*IrmsDev*IrmsDev;
+      }
+      var vscale=Math.pow(Vcell/p.VREF,dp.kv);
+      var iscale=Math.pow(IrmsDev/p.IREF,dp.ki);
+      eon=dp.eon*vscale*iscale*(1.0+dp.alpha*(Tj-p.TREF));
+      eoff=dp.eoff*vscale*iscale*(1.0+dp.alpha*(Tj-p.TREF));
+      errE=dp.err*vscale*iscale;
+      if(isDiode){ Psw=0.0; Prr=errE*fGroup; }
+      else{ Psw=(eon+eoff)*fGroup; Prr=(name==='inner')?errE*fGroup:0.0; }
+      Ptotal=Pcond+Psw+Prr;
+      var TjNew=Ta+Ptotal*rth;
+      if(Math.abs(TjNew-Tj)<1e-7){ Tj=TjNew; break; }
+      Tj=TjNew;
+    }
+    groups[name]={pos:pos,is_diode:isDiode,f_group:fGroup,
+      Irms_dev:IrmsDev,Iavg_dev:IavgDev,
+      Pcond:Pcond,eon:eon,eoff:eoff,errE:errE,
+      Psw:Psw,Prr:Prr,Ptotal:Ptotal,Tj:Tj,margin:dp.tjmax-Tj};
+  }
+  var P1=0; for(var g in groups) P1+=groups[g].Ptotal;
+  var P3=3.0*P1;
+  var TjMax=-1e9; for(var g2 in groups) if(groups[g2].Tj>TjMax) TjMax=groups[g2].Tj;
+  var derate=Vstress/dp.vrated;
+  var okDerate=derate<=p.DERATE_MAX;
+  var okTemp=(dp.tjmax-TjMax)>=p.TJ_MARGIN;
+  var allOk=okDerate&&okTemp&&(!overmod)&&ok_np;
+  return {topo:topo,mod:mod,device:device,
+    Ipk:Ipk,Vcell:Vcell,Vstress:Vstress,mod_cap:mod_cap,overmod:overmod,
+    kI_base:kI_base,dVn_pct:dVn_pct,ok_np:ok_np,
+    groups:groups,P_1ph:P1,P_3ph:P3,Tj_max:TjMax,
+    derate:derate,ok_derate:okDerate,ok_temp:okTemp,
+    tjmax:dp.tjmax,vrated:dp.vrated,all_ok:allOk};
+}
+</script>
+
+<script>
+var TABS=['topo','stress','loss','thermal','compare'];
+var TAB_NAMES={topo:'拓扑总览',stress:'器件应力',loss:'损耗分布',thermal:'热分析',compare:'横向对比'};
+var cur='topo';
+var R=null; // 当前结果
+
+function fmt(v,d){ return (isFinite(v)?v.toFixed(d===undefined?1:d):'—'); }
+function fHz(khz){ var h=khz*1000; return h>=1000?(h/1000).toFixed(0)+' kHz':h.toFixed(0)+' Hz'; }
+function readParams(){
+  var p={};
+  var ids=['VDC','IRMS','PF','M','FSW','TA','RTH_JC','RTH_CS','RTH_SA',
+    'SIC_RDS25','SIC_EON','SIC_EOFF','SIC_ERR','SIC_VRATED','SIC_TJMAX',
+    'IGBT_VCE0','IGBT_RCE','IGBT_EON','IGBT_EOFF','IGBT_ERR','IGBT_VRATED','IGBT_TJMAX'];
+  ids.forEach(function(k){ var el=document.getElementById('in_'+k); if(el) p[k]=parseFloat(el.value)||0; });
+  return p;
+}
+function selTopo(){return document.getElementById('selTopo').value;}
+function selMod(){return document.getElementById('selMod').value;}
+function selDev(){return document.getElementById('selDev').value;}
+
+function topoNote(){
+  var t=selTopo();
+  if(t==='ANPC') return '<b>ANPC（有源中点箝位）</b>：6 个有源管。默认换流策略让<b>外管工频开关</b>（开关损耗≈0，以导通损耗为主），内管+箝位管高频承担开关损耗——损耗被"分散"，最高结温通常更低，但器件多、成本高。';
+  return '<b>I-NPC（二极管箝位）</b>：4 个主管（全高频）+ 2 个箝位二极管（工频，有反向恢复）。损耗更集中在高频主管，最高结温通常更高，但器件少、成本低。';
+}
+
+function renderTabs(){
+  var h='';
+  TABS.forEach(function(t){ h+='<button class="tab '+(t===cur?'active':'')+'" onclick="setTab(\''+t+'\')">'+TAB_NAMES[t]+'</button>'; });
+  document.getElementById('tabs').innerHTML=h;
+}
+function setTab(t){ cur=t; render(); }
+
+function inputTable(rows){
+  var h='<table><tbody>';
+  rows.forEach(function(r){
+    h+='<tr><td class="sym">'+r[0]+'</td><td class="unit">'+r[2]+'</td>'+
+       '<td class="val"><input id="in_'+r[1]+'" value="'+r[3]+'" oninput="onSwitch()"></td></tr>';
+  });
+  return h+'</tbody></table>';
+}
+
+function renderInputs(){
+  var p=readParams();
+  var merged={}; for(var k in DEFAULT) merged[k]=DEFAULT[k]; for(var k2 in p) merged[k2]=p[k2];
+  var h='<div class="grid3">'+
+    '<div class="card in"><h2>输入区 · 工况</h2><div class="pad">'+inputTable([
+      ['Vdc 直流母线','VDC','V',merged.VDC],
+      ['Irms 相电流','IRMS','A',merged.IRMS],
+      ['pf 功率因数','PF','—',merged.PF],
+      ['m 调制度','M','—',merged.M],
+      ['fsw 开关频率','FSW','kHz',merged.FSW],
+      ['Ta 环境温度','TA','°C',merged.TA]
+    ])+'</div></div>'+
+    '<div class="card in"><h2>输入区 · 热阻 / 器件库</h2><div class="pad">'+inputTable([
+      ['Rth jc','RTH_JC','K/W',merged.RTH_JC],
+      ['Rth cs','RTH_CS','K/W',merged.RTH_CS],
+      ['Rth sa','RTH_SA','K/W',merged.RTH_SA],
+      [selDev()+' Vrated',selDev()==='SiC'?'SIC_VRATED':'IGBT_VRATED','V',selDev()==='SiC'?merged.SIC_VRATED:merged.IGBT_VRATED],
+      [selDev()+' Tjmax',selDev()==='SiC'?'SIC_TJMAX':'IGBT_TJMAX','°C',selDev()==='SiC'?merged.SIC_TJMAX:merged.IGBT_TJMAX]
+    ])+'</div></div>'+
+    '<div class="card in"><h2>输入区 · 器件损耗参数（'+selDev()+'）</h2><div class="pad">'+ (selDev()==='SiC'?
+      inputTable([
+        ['Rds(on)@25℃','SIC_RDS25','mΩ',merged.SIC_RDS25],
+        ['Eon@ref','SIC_EON','mJ',merged.SIC_EON],
+        ['Eoff@ref','SIC_EOFF','mJ',merged.SIC_EOFF],
+        ['Err@ref','SIC_ERR','mJ',merged.SIC_ERR]
+      ]) : inputTable([
+        ['Vce0','IGBT_VCE0','V',merged.IGBT_VCE0],
+        ['rce','IGBT_RCE','mΩ',merged.IGBT_RCE],
+        ['Eon@ref','IGBT_EON','mJ',merged.IGBT_EON],
+        ['Eoff@ref','IGBT_EOFF','mJ',merged.IGBT_EOFF],
+        ['Err@ref','IGBT_ERR','mJ',merged.IGBT_ERR]
+      ]) )+'</div></div></div>';
+  return h;
+}
+
+function chk(b){return '<span class="chkbox '+(b?'PASS':'FAIL')+'">'+(b?'PASS':'FAIL')+'</span>';}
+
+/* ===== 高大上组件 ===== */
+
+// 温度 → 颜色（蓝→青→绿→黄→红），按 Tj 相对 Tjmax 归一
+function tempColor(tj, tjmax){
+  var f=(tj-25)/(tjmax-25); f=Math.max(0,Math.min(1,f));
+  var stops=[[59,130,246],[6,182,212],[16,185,129],[234,179,8],[220,38,38]];
+  var seg=f*(stops.length-1), i=Math.min(stops.length-2,Math.floor(seg)), r=seg-i;
+  var a=stops[i],b=stops[i+1];
+  var c=a.map(function(v,j){return Math.round(v+(b[j]-v)*r);});
+  return 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+}
+
+// 顶部 KPI 数据卡
+function kpiCards(r){
+  var mg=r.tjmax-r.Tj_max;
+  var cls1=r.derate<=DEFAULT.DERATE_MAX?'good':'bad';
+  var cls2=mg>=DEFAULT.TJ_MARGIN?'good':(mg>=0?'warn':'bad');
+  var cls3=!r.overmod&&r.ok_np?'good':'warn';
+  var cls4=r.all_ok?'good':'bad';
+  return ''+
+   '<div class="kpi"><div class="k-lbl">三相总损耗</div><div class="k-val">'+fmt(r.P_3ph,0)+'<em>W</em></div>'+
+     '<div class="k-sub">单相 '+fmt(r.P_1ph,0)+' W · '+selTopo()+'</div></div>'+
+   '<div class="kpi '+cls2+'"><div class="k-lbl">最高结温</div><div class="k-val">'+fmt(r.Tj_max)+'<em>°C</em></div>'+
+     '<div class="k-sub">裕度 '+fmt(mg)+' K · Tjmax '+fmt(r.tjmax,0)+'</div></div>'+
+   '<div class="kpi '+cls1+'"><div class="k-lbl">电压应力比</div><div class="k-val">'+fmt(r.derate,3)+'</div>'+
+     '<div class="k-sub">Vcell '+fmt(r.Vcell)+' V · 限 '+DEFAULT.DERATE_MAX+'</div></div>'+
+   '<div class="kpi '+cls4+'"><div class="k-lbl">综合校核</div><div class="k-val" style="font-size:22px">'+(r.all_ok?'PASS':'FAIL')+'</div>'+
+     '<div class="k-sub">中点 '+fmt(r.dVn_pct,2)+'% · '+(r.overmod?'过调制':'正常调制')+'</div></div>';
+}
+
+// 三电平单相桥臂拓扑图（器件方块按结温着色）
+function topoDiagram(r){
+  var isANPC=selTopo()==='ANPC';
+  var g=r.groups;
+  var cOut=tempColor(g.outer.Tj,r.tjmax), cIn=tempColor(g.inner.Tj,r.tjmax), cCl=tempColor(g.clamp.Tj,r.tjmax);
+  function dev(x,y,name,sub,color,pt){
+    return '<g class="dev-node"><rect x="'+x+'" y="'+y+'" width="52" height="40" rx="7" fill="'+color+'" stroke="#0f172a" stroke-opacity=".25"/>'+
+      '<text class="svg-sub" x="'+(x+26)+'" y="'+(y+17)+'" text-anchor="middle" style="font-size:12px;font-weight:700">'+name+'</text>'+
+      '<text class="svg-sub" x="'+(x+26)+'" y="'+(y+31)+'" text-anchor="middle" style="font-size:9px">'+sub+'</text>'+
+      '<title>'+name+' '+sub+'\n结温 '+fmt(pt.Tj)+'°C · 损耗 '+fmt(pt.Ptotal,1)+' W</title></g>';
+  }
+  var X=300; // 主管列
+  var s='<svg class="topo-svg" viewBox="0 0 620 340" xmlns="http://www.w3.org/2000/svg">';
+  // 直流母线
+  s+='<line class="svg-bus" x1="60" y1="40" x2="560" y2="40"/>';   // +
+  s+='<line class="svg-bus" x1="60" y1="170" x2="250" y2="170"/>'; // O（中点，只到箝位列）
+  s+='<line class="svg-bus" x1="60" y1="300" x2="560" y2="300"/>'; // -
+  s+='<text class="svg-lbl" x="40" y="44" text-anchor="end">+Vdc/2</text>';
+  s+='<text class="svg-lbl" x="40" y="174" text-anchor="end">O</text>';
+  s+='<text class="svg-lbl" x="40" y="304" text-anchor="end">-Vdc/2</text>';
+  // 分压电容
+  s+='<line class="svg-cap" x1="130" y1="70" x2="130" y2="140"/>';
+  s+='<line class="svg-cap" x1="115" y1="82" x2="145" y2="82"/>';
+  s+='<line class="svg-cap" x1="115" y1="128" x2="145" y2="128"/>';
+  s+='<line class="svg-cap" x1="130" y1="200" x2="130" y2="270"/>';
+  s+='<line class="svg-cap" x1="115" y1="212" x2="145" y2="212"/>';
+  s+='<line class="svg-cap" x1="115" y1="258" x2="145" y2="258"/>';
+  // 主管竖列 P->S1->S2->AC->S3->S4->N
+  s+='<line class="svg-bus" x1="'+X+'" y1="40" x2="'+X+'" y2="70"/>';
+  s+=dev(X-26,70,'S1','outer',cOut,g.outer);
+  s+='<line class="svg-bus" x1="'+X+'" y1="110" x2="'+X+'" y2="132"/>';
+  s+=dev(X-26,132,'S2','inner',cIn,g.inner);
+  s+='<line class="svg-bus" x1="'+X+'" y1="172" x2="'+X+'" y2="198"/>';
+  // AC 输出节点
+  s+='<line class="svg-bus" x1="'+X+'" y1="185" x2="500" y2="185"/>';
+  s+='<circle cx="'+X+'" cy="185" r="4" fill="#0f172a"/>';
+  s+='<text class="svg-lbl" x="505" y="189">AC 输出</text>';
+  s+=dev(X-26,198,'S3','inner',cIn,g.inner);
+  s+='<line class="svg-bus" x1="'+X+'" y1="238" x2="'+X+'" y2="260"/>';
+  s+=dev(X-26,260,'S4','outer',cOut,g.outer);
+  s+='<line class="svg-bus" x1="'+X+'" y1="300" x2="'+X+'" y2="300"/>';
+  // 箝位支路：O(250,170) → 箝位器件 → 分别接 S1/S2 中点(上) 与 S3/S4 中点(下)
+  s+='<line class="svg-bus" x1="250" y1="170" x2="250" y2="95"/>';
+  s+='<line class="svg-bus" x1="250" y1="95" x2="'+(X-26)+'" y2="95"/>';
+  s+=dev(224,75,'S5','clamp',cCl,g.clamp);
+  s+='<line class="svg-bus" x1="250" y1="170" x2="250" y2="245"/>';
+  s+='<line class="svg-bus" x1="250" y1="245" x2="'+(X-26)+'" y2="245"/>';
+  s+=dev(224,225,'S6','clamp',cCl,g.clamp);
+  // 标注箝位管类型
+  s+='<text class="svg-lbl" x="250" y="70" text-anchor="middle" style="font-size:10px;fill:#64748b">'+(isANPC?'有源箝位':'箝位二极管')+'</text>';
+  // 图例
+  s+='<g transform="translate(430,265)">';
+  s+='<text class="svg-lbl" x="0" y="0" style="font-size:10px;fill:#64748b">颜色 = 结温（悬停看数值）</text>';
+  s+='<rect x="0" y="8" width="150" height="9" rx="4" fill="url(#hg)"/></g>';
+  s+='<defs><linearGradient id="hg"><stop offset="0" stop-color="#3b82f6"/><stop offset=".33" stop-color="#10b981"/>'+
+     '<stop offset=".66" stop-color="#eab308"/><stop offset="1" stop-color="#dc2626"/></linearGradient></defs>';
+  s+='</svg>';
+  return '<div class="card calc"><h2>三电平单相桥臂拓扑 · 结温热力图（'+selTopo()+'）</h2>'+
+    '<div class="topo-wrap">'+s+'</div>'+
+    '<div class="pad small">器件方块颜色随结温实时变化；鼠标悬停查看单个器件的结温与损耗。S1/S4 为外管、S2/S3 为内管、S5/S6 为箝位'+(isANPC?'有源管':'二极管')+'。</div></div>';
+}
+
+// 结温热力条
+function thermalBars(r){
+  var h='<div class="card calc"><h2>结温分布热力条</h2><div class="pad">';
+  for(var g in r.groups){
+    var x=r.groups[g];
+    var f=(x.Tj-25)/(r.tjmax-25); f=Math.max(0,Math.min(1,f));
+    h+='<div class="heatrow"><div class="hname">'+GNAME[g]+'</div>'+
+      '<div class="htrack"><div class="hmark" style="left:'+(f*100)+'%"></div></div>'+
+      '<div class="hval" style="color:'+tempColor(x.Tj,r.tjmax)+'">'+fmt(x.Tj)+'°C</div></div>';
+  }
+  h+='<div class="heat-legend"><span>25°C</span><div class="heat-grad"></div><span>'+fmt(r.tjmax,0)+'°C (Tjmax)</span></div>';
+  return h+'</div></div>';
+}
+
+// 多维雷达对比图（效率/热/中点/成本）——相对归一，四轴都有区分度
+function radarCompare(){
+  var p=readParams();
+  var combos=[
+    {t:'ANPC',m:'SVPWM',d:'SiC', c:'#2563eb', cost:0.55}, // 器件多、成本高
+    {t:'INPC',m:'SVPWM',d:'SiC', c:'#dc2626', cost:0.90}, // 器件少、成本低
+    {t:'ANPC',m:'SPWM', d:'SiC', c:'#0891b2', cost:0.55},
+    {t:'INPC',m:'SVPWM',d:'IGBT',c:'#d97706', cost:0.75},
+  ];
+  var rs=combos.map(function(c){return solve(p,c.t,c.m,c.d);});
+  // 四个"越大越好"的原始指标
+  var raw=rs.map(function(r,i){
+    return {
+      eff:-r.P_3ph,          // 损耗越低越好
+      heat:-r.Tj_max,        // 结温越低越好
+      np:-r.dVn_pct,         // 中点漂移越小越好
+      cost:combos[i].cost    // 成本得分（器件少=高）
+    };
+  });
+  var keys=['eff','heat','np','cost'];
+  // 每个维度按本组 min/max 相对归一到 [0.18,1]，拉开区分度
+  var norm=raw.map(function(){return {};});
+  keys.forEach(function(k){
+    var vs=raw.map(function(o){return o[k];});
+    var lo=Math.min.apply(null,vs), hi=Math.max.apply(null,vs);
+    var span=hi-lo||1;
+    raw.forEach(function(o,i){ norm[i][k]=0.18+0.82*(o[k]-lo)/span; });
+  });
+  var axes=['效率','热裕度','中点平衡','成本优势'];
+  var cx=150,cy=145,Rr=100;
+  function pt(i,val){var a=-Math.PI/2+i*Math.PI/2;return [cx+Rr*val*Math.cos(a),cy+Rr*val*Math.sin(a)];}
+  function poly(vals){return vals.map(function(v,i){var q=pt(i,v);return q[0].toFixed(1)+','+q[1].toFixed(1);}).join(' ');}
+  var s='<svg class="topo-svg" viewBox="0 0 300 290" style="max-width:300px">';
+  [0.25,0.5,0.75,1].forEach(function(k){
+    s+='<polygon points="'+poly([k,k,k,k])+'" fill="none" stroke="#d8e1ec" stroke-width="1"/>';
+  });
+  axes.forEach(function(ax,i){var q=pt(i,1);s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+q[0]+'" y2="'+q[1]+'" stroke="#d8e1ec"/>';
+    var lb=pt(i,1.2);s+='<text x="'+lb[0]+'" y="'+lb[1]+'" text-anchor="middle" class="svg-lbl" style="font-size:11px">'+ax+'</text>';});
+  norm.forEach(function(o,ri){
+    var vals=keys.map(function(k){return o[k];});
+    s+='<polygon points="'+poly(vals)+'" fill="'+combos[ri].c+'" fill-opacity=".07" stroke="'+combos[ri].c+'" stroke-width="2"/>';
+    vals.forEach(function(v,i){var q=pt(i,v);s+='<circle cx="'+q[0]+'" cy="'+q[1]+'" r="2.5" fill="'+combos[ri].c+'"/>';});
+  });
+  s+='</svg>';
+  var lg='<div class="radar-legend">'+combos.map(function(c,i){
+    return '<div><i style="background:'+c.c+'"></i>'+c.t+' / '+c.d+' / '+c.m+'</div>';}).join('')+'</div>';
+  return '<div class="card calc"><h2>多维雷达对比（效率·热·中点·成本）</h2>'+
+    '<div class="pad radar-wrap">'+s+lg+'</div>'+
+    '<div class="pad small">四个维度按本组最优/最差相对归一，均"越大越好"（成本：器件越少分越高）。多边形越靠外，该方案综合优势越明显；不同方案各有取舍，无绝对全能。</div></div>';
+}
+
+function panelTopo(r){
+  var ns=selTopo()==='ANPC'?'6 有源管':'4 主管 + 2 箝位二极管';
+  var h=topoDiagram(r)+'<div class="grid2" style="margin-top:18px">'+
+   '<div class="card calc"><h2>电气量 / 应力</h2><table><tbody>'+
+    row('Ipk 相电流峰值',fmt(r.Ipk),'A')+
+    row('Vcell 单管阻断电压',fmt(r.Vcell),'V')+
+    row('Vstress 含过冲应力',fmt(r.Vstress),'V')+
+    row('Vrated 器件额定',fmt(r.vrated),'V')+
+    row('电压应力比 derate',fmt(r.derate,3),'≤0.80')+
+    row('电流应力系数 kI',fmt(r.kI_base,3),'—')+
+   '</tbody></table></div>'+
+   '<div class="card calc"><h2>单相 / 三相损耗</h2>'+
+    '<div class="bigres" style="display:inline-block;width:48%"><div class="num">'+fmt(r.P_1ph,0)+'</div><div class="lbl">单相损耗 W</div></div>'+
+    '<div class="bigres" style="display:inline-block;width:48%"><div class="num">'+fmt(r.P_3ph,0)+'</div><div class="lbl">三相总损耗 W</div></div>'+
+    '<table><tbody>'+
+    row('拓扑器件数（单相）',ns,'')+
+    row('最高结温 Tjmax',fmt(r.Tj_max),'°C')+
+    '</tbody></table></div></div>'+
+   '<div class="card chk"><h2>校核区 · 四项判据</h2><div class="pad"><table><tbody>'+
+    chkrow('① 电压降额 derate ≤ 0.80',fmt(r.derate,3),r.ok_derate)+
+    chkrow('② 结温裕度 ≥ 10K',fmt(r.tjmax-r.Tj_max)+'K',r.ok_temp)+
+    chkrow('③ 未过调制 m ≤ '+fmt(r.mod_cap,3),fmt(readParams().M||0.9,3),!r.overmod)+
+    chkrow('④ 中点不平衡 < 5%',fmt(r.dVn_pct,2)+'%',r.ok_np)+
+   '</tbody></table></div></div>';
+  return h+'</div>';
+}
+function row(n,v,u){return '<tr><td class="sym">'+n+'</td><td class="res calc-val">'+v+'</td><td class="unit">'+u+'</td></tr>';}
+function chkrow(n,v,ok){return '<tr><td>'+n+'</td><td class="res">'+v+'</td><td class="res">'+chk(ok)+'</td></tr>';}
+
+var GNAME={outer:'外管 outer',inner:'内管 inner',clamp:'箝位管/二极管'};
+function panelStress(r){
+  var h='<div class="card calc"><h2>各位置器件电流 / 电压应力</h2><table><thead><tr>'+
+    '<th>位置</th><th>开关频率</th><th>位置因子</th><th>Irms(管)</th><th>Iavg(管)</th><th>阻断电压</th><th>应力比</th>'+
+    '</tr></thead><tbody>';
+  for(var g in r.groups){
+    var x=r.groups[g];
+    h+='<tr><td>'+GNAME[g]+(x.is_diode?' <span class="tag g">二极管</span>':'')+'</td>'+
+      '<td class="res">'+fHz(x.f_group)+'</td>'+
+      '<td class="res">'+fmt(x.pos,2)+'</td>'+
+      '<td class="res calc-val">'+fmt(x.Irms_dev)+' A</td>'+
+      '<td class="res">'+fmt(x.Iavg_dev)+' A</td>'+
+      '<td class="res">'+fmt(r.Vcell)+' V</td>'+
+      '<td class="res">'+fmt(r.derate,3)+'</td></tr>';
+  }
+  return h+'</tbody></table><div class="pad small">三电平每管稳态只承受 Vcell=Vdc/2；外管/内管/箝位管的差异体现在开关频率与电流应力（导通时间占比）上。</div></div>';
+}
+
+function panelLoss(r){
+  var maxP=1; for(var g in r.groups) if(r.groups[g].Ptotal>maxP) maxP=r.groups[g].Ptotal;
+  var colors={outer:'#2563eb',inner:'#0891b2',clamp:'#d97706'};
+  var h='<div class="grid2"><div class="card calc"><h2>损耗分解（单相，按位置）</h2><div class="barwrap">';
+  for(var g2 in r.groups){
+    var x=r.groups[g2];
+    h+='<div class="barrow"><div class="lb">'+GNAME[g2]+'</div>'+
+      '<div class="track"><div class="fill" style="width:'+(100*x.Ptotal/maxP)+'%;background:'+colors[g2]+'"></div></div>'+
+      '<div class="vl">'+fmt(x.Ptotal,1)+' W</div></div>';
+  }
+  h+='</div><table><thead><tr><th>位置</th><th>导通</th><th>开关</th><th>反向恢复</th><th>合计</th></tr></thead><tbody>';
+  for(var g3 in r.groups){
+    var y=r.groups[g3];
+    h+='<tr><td>'+GNAME[g3]+'</td><td class="res">'+fmt(y.Pcond,1)+'</td><td class="res">'+fmt(y.Psw,1)+'</td>'+
+      '<td class="res">'+fmt(y.Prr,1)+'</td><td class="res calc-val">'+fmt(y.Ptotal,1)+' W</td></tr>';
+  }
+  h+='<tr><td><b>单相合计</b></td><td colspan="3"></td><td class="res calc-val"><b>'+fmt(r.P_1ph,1)+' W</b></td></tr>';
+  h+='<tr><td><b>三相合计</b></td><td colspan="3"></td><td class="res calc-val"><b>'+fmt(r.P_3ph,1)+' W</b></td></tr>';
+  return h+'</tbody></table></div>'+
+   '<div class="card chk"><h2>损耗结构说明</h2><div class="pad small" style="font-size:12px;line-height:1.9">'+
+   '<p><b>ANPC</b>：外管工频化 → 开关损耗≈0，损耗主要来自导通；高频开关损耗转移给内管/箝位管，热分布更均匀。</p>'+
+   '<p><b>I-NPC</b>：主管全高频 → 开关损耗较高且集中；箝位二极管工频但有反向恢复损耗 Err。</p>'+
+   '<p><b>SVPWM vs SPWM</b>：同等条件下 SVPWM 电压利用率高、电流应力系数小，损耗与中点漂移都更低。</p>'+
+   '</div></div></div>';
+}
+
+function panelThermal(r){
+  var h=thermalBars(r)+'<div class="card calc" style="margin-top:18px"><h2>结温闭环迭代结果（'+selDev()+'，Tjmax='+fmt(r.tjmax,0)+'°C）</h2>'+
+    '<table><thead><tr><th>位置</th><th>开关频率</th><th>总损耗 W</th><th>结温 Tj °C</th><th>裕度 K</th><th>校核</th></tr></thead><tbody>';
+  for(var g in r.groups){
+    var x=r.groups[g];
+    h+='<tr><td>'+GNAME[g]+'</td><td class="res">'+fHz(x.f_group)+'</td><td class="res">'+fmt(x.Ptotal,1)+'</td>'+
+      '<td class="res calc-val">'+fmt(x.Tj)+'</td><td class="res">'+fmt(x.margin)+'</td><td class="res">'+chk(x.margin>=DEFAULT.TJ_MARGIN)+'</td></tr>';
+  }
+  return h+'</tbody></table><div class="pad small">每类管独立迭代：Tj = Ta + P_total × (Rth_jc+Rth_cs+Rth_sa)，SiC 的 Rds(on) 随 Tj 上升参与迭代。每管裕度需 ≥ '+DEFAULT.TJ_MARGIN+'K。</div></div>';
+}
+
+function panelCompare(){
+  var p=readParams();
+  var combos=[
+    {t:'ANPC',m:'SVPWM',d:'SiC'},{t:'INPC',m:'SVPWM',d:'SiC'},
+    {t:'ANPC',m:'SPWM',d:'SiC'},{t:'INPC',m:'SPWM',d:'SiC'},
+    {t:'ANPC',m:'SVPWM',d:'IGBT'},{t:'INPC',m:'SVPWM',d:'IGBT'}
+  ];
+  var rs=combos.map(function(c){return solve(p,c.t,c.m,c.d);});
+  var minP=Math.min.apply(null,rs.map(function(r){return r.P_3ph;}));
+  var minT=Math.min.apply(null,rs.map(function(r){return r.Tj_max;}));
+  var h=radarCompare()+'<div class="card calc" style="margin-top:18px"><h2>六组合横向对比（同工况）</h2><table class="cmp"><thead><tr>'+
+    '<th>拓扑</th><th>调制</th><th>器件</th><th>三相损耗 W</th><th>最高结温 °C</th><th>应力比</th><th>中点漂移</th><th>结论</th>'+
+    '</tr></thead><tbody>';
+  rs.forEach(function(r){
+    h+='<tr><td>'+r.topo+'</td><td>'+r.mod+'</td><td>'+r.device+'</td>'+
+      '<td class="res '+(Math.abs(r.P_3ph-minP)<0.5?'best':'')+'">'+fmt(r.P_3ph,0)+'</td>'+
+      '<td class="res '+(Math.abs(r.Tj_max-minT)<0.5?'best':'')+'">'+fmt(r.Tj_max)+'</td>'+
+      '<td class="res">'+fmt(r.derate,3)+'</td>'+
+      '<td class="res">'+fmt(r.dVn_pct,2)+'%</td>'+
+      '<td>'+chk(r.all_ok)+'</td></tr>';
+  });
+  h+='</tbody></table><div class="pad small">绿色=该列最优。对比默认工况下：ANPC 靠外管工频化降低开关损耗与最高结温；SVPWM 在损耗和中点平衡上都优于 SPWM。</div></div>';
+  return h;
+}
+
+function render(){
+  renderTabs();
+  document.getElementById('topoNote').innerHTML=topoNote();
+  var p=readParams();
+  R=solve(p,selTopo(),selMod(),selDev());
+  var hero=document.getElementById('hero');
+  if(hero) hero.innerHTML=kpiCards(R);
+  var h=renderInputs();
+  if(cur==='topo') h+=panelTopo(R);
+  else if(cur==='stress') h+=panelStress(R);
+  else if(cur==='loss') h+=panelLoss(R);
+  else if(cur==='thermal') h+=panelThermal(R);
+  else if(cur==='compare') h+=panelCompare();
+  h+='<details><summary>模型假设与公式（点击展开）</summary>'+
+    '<ul>'+
+    '<li>三电平单管阻断 <code>Vcell = Vdc/(N-1) = Vdc/2</code>，含过冲 <code>Vstress = Vcell×1.15</code>。</li>'+
+    '<li>电流应力 <code>Ipk=√2·Irms</code>，基准系数 <code>kI=0.55+0.25·(m/mcap)·pf</code>，再乘位置因子。</li>'+
+    '<li>导通：SiC <code>rds(Tj)·I²</code>；IGBT <code>Vce0·Iavg + rce·I²</code>。</li>'+
+    '<li>开关能量按 <code>(Vcell/Vref)^kv·(I/Iref)^ki·(1+α·ΔT)</code> 缩放；<code>P=E(mJ)·f(kHz)</code>。</li>'+
+    '<li>结温闭环 <code>Tj=Ta+P·Rth_total</code>；中点漂移 <code>ΔVn%=|1-pf|·m·k_np·100</code>。</li>'+
+    '</ul><p class="small">工程近似模型，用于方案快速评估与器件横向对比；精确损耗与热设计以器件手册和仿真为准。</p></details>';
+  document.getElementById('panels').innerHTML=h;
+  document.getElementById('hint').textContent=R.all_ok?'全部校核通过':'存在未通过项，见校核区';
+}
+function onSwitch(){ render(); }
+function loadDemo(){
+  var demo={VDC:800,IRMS:180,PF:0.99,M:0.9,FSW:10,TA:40,RTH_JC:0.15,RTH_CS:0.05,RTH_SA:0.20,
+    SIC_RDS25:8,SIC_EON:1.2,SIC_EOFF:0.8,SIC_ERR:0.25,SIC_VRATED:1200,SIC_TJMAX:175,
+    IGBT_VCE0:0.9,IGBT_RCE:4,IGBT_EON:3.5,IGBT_EOFF:4.2,IGBT_ERR:1.8,IGBT_VRATED:1200,IGBT_TJMAX:150};
+  for(var k in demo){var el=document.getElementById('in_'+k);if(el)el.value=demo[k];}
+  render();
+}
+function copyReport(){
+  var r=R, txt='ANPC/I-NPC 三电平器件评估\n'+
+    '配置：'+r.topo+' / '+r.mod+' / '+r.device+'\n'+
+    'Vdc='+fmt(readParams().VDC||800)+'V  Irms='+fmt(readParams().IRMS||180)+'A  pf='+(readParams().PF||0.99)+'  m='+(readParams().M||0.9)+'  fsw='+fmt(readParams().FSW||10)+'kHz\n'+
+    '单相损耗='+fmt(r.P_1ph)+'W  三相='+fmt(r.P_3ph)+'W  最高结温='+fmt(r.Tj_max)+'°C\n'+
+    '应力比='+fmt(r.derate,3)+'  中点漂移='+fmt(r.dVn_pct,2)+'%\n'+
+    '结论：'+(r.all_ok?'全部通过':'有未通过项');
+  if(navigator.clipboard) navigator.clipboard.writeText(txt);
+  alert(txt);
+}
+render();
+</script>
+</body>
+</html>

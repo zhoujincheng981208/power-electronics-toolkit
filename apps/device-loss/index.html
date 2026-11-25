@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>器件损耗与结温评估</title>
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#ffffff; --panel2:#edf2f8; --line:#d8e1ec;
+    --txt:#1e2b3c; --sub:#64748b; --acc:#2563eb;
+    --in:#fffaeb; --in-line:#d9a521; --calc:#f2f6fa; --chk:#ecfbf3; --chk-line:#3fae74;
+    --pass:#15803d; --fail:#dc2626; --warn:#b45309;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1300px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:18px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-bottom:20px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .sw.in{background:var(--in);border:1px solid var(--in-line)}
+  .sw.calc{background:var(--calc);border:1px solid var(--line)}
+  .sw.chk{background:var(--chk);border:1px solid var(--chk-line)}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  button{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--acc)}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+    padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
+  .tab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+  @media(max-width:1000px){.grid,.grid3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05)}
+  .card h2{font-size:14px;margin:0;padding:12px 16px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .card.in h2{background:#fdf3cf}
+  .card.calc h2{background:#e7edf5}
+  .card.chk h2{background:#daf3e5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--sub);font-weight:600;font-size:11px;text-align:left;
+    padding:8px 12px;border-bottom:1px solid var(--line)}
+  td{padding:6px 12px;border-bottom:1px solid rgba(15,23,42,.06)}
+  tr:last-child td{border-bottom:none}
+  .sym{color:var(--sub);font-family:Consolas,monospace;font-size:12px}
+  .unit{color:var(--sub);font-size:11px;white-space:nowrap}
+  td.val,td.res{text-align:right;font-family:Consolas,"Microsoft YaHei",monospace;font-variant-numeric:tabular-nums}
+  input{width:88px;background:var(--in);border:1px solid var(--in-line);color:#7a5200;
+    padding:5px 8px;border-radius:6px;text-align:right;font-family:Consolas,monospace;font-size:13px}
+  input:focus{outline:2px solid var(--acc);border-color:var(--acc)}
+  .calc-val{color:#1d4ed8}
+  .chkbox{font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px}
+  .chkbox.PASS{color:var(--pass);background:rgba(21,128,61,.12)}
+  .chkbox.FAIL{color:var(--fail);background:rgba(220,38,38,.12)}
+  .note{color:var(--sub);font-size:12px;padding:10px 16px 14px;line-height:1.7}
+  details{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  summary{cursor:pointer;font-weight:600;color:var(--acc)}
+  details p,details li{color:var(--sub);font-size:13px}
+  code{background:var(--panel2);padding:1px 5px;border-radius:4px;color:#a16207}
+  .small{font-size:11px;color:var(--sub)}
+  .sugg{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;
+    font-size:12px;color:#7c5a06;margin-top:14px;line-height:1.7}
+  .bigres{text-align:center;padding:14px}
+  .bigres .num{font-size:32px;font-weight:700;color:var(--acc);font-family:Consolas,monospace}
+  .bigres .lbl{font-size:12px;color:var(--sub)}
+  .barwrap{padding:14px 16px}
+  .barrow{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px}
+  .barrow .lb{width:74px;color:var(--sub);text-align:right}
+  .barrow .track{flex:1;background:var(--panel2);border-radius:5px;height:18px;position:relative;overflow:hidden}
+  .barrow .fill{height:100%;border-radius:5px}
+  .barrow .vl{width:70px;font-family:Consolas,monospace;text-align:right}
+  .cmp td.best{background:#ecfbf3;font-weight:700}
+  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;background:var(--acc);color:#fff;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>器件损耗与结温评估</h1>
+  <div class="sub">SiC MOSFET / IGBT　·　导通+开关+反向恢复损耗 → 热阻网络 → 结温闭环迭代 → 并联降额 → 寿命估算</div>
+  <div class="legend">
+    <span><i class="sw in"></i>输入区（黄，可改）</span>
+    <span><i class="sw calc"></i>计算区（联动）</span>
+    <span><i class="sw chk"></i>校核区（自动判定）</span>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="bar">
+    <button onclick="loadDemo()">载入演示值</button>
+    <button onclick="copyReport()">复制结果</button>
+    <span class="small" id="hint"></span>
+  </div>
+  <div class="grid3">
+    <div class="card in">
+      <h2>输入区 · 工况与热</h2>
+      <table><tbody id="tbOp"></tbody></table>
+    </div>
+    <div class="card in">
+      <h2>输入区 · 器件损耗参数</h2>
+      <table><tbody id="tbDev"></tbody></table>
+    </div>
+    <div class="card in">
+      <h2>输入区 · 缩放系数 / 寿命</h2>
+      <table><tbody id="tbScale"></tbody></table>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:20px">
+    <div>
+      <div class="card calc">
+        <h2>损耗分解</h2>
+        <div class="barwrap" id="lossBars"></div>
+        <table><tbody id="tbLoss"></tbody></table>
+      </div>
+      <div class="card calc" style="margin-top:20px">
+        <h2>结温闭环迭代</h2>
+        <table><tbody id="tbThermal"></tbody></table>
+      </div>
+    </div>
+    <div>
+      <div class="card chk">
+        <h2>结温校核与寿命</h2>
+        <div class="bigres"><div class="num" id="bigTj">--</div><div class="lbl">结温 Tj (°C) · 上限 <span id="tjmax"></span>°C</div></div>
+        <table><tbody id="tbChk"></tbody></table>
+        <div id="sugg" class="sugg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card calc" style="margin-top:20px">
+    <h2>SiC vs IGBT 同工况对比</h2>
+    <div style="overflow-x:auto"><table id="tbCmp"></table></div>
+    <div class="note">同一工况、同并联数下对比：SiC 开关损耗小、Eoff 温度不敏感；IGBT 有拖尾电流，Eoff 与温敏都大，高频下损耗与结温迅速上升。绿色行 = 当前所选器件。</div>
+  </div>
+
+  <details open>
+    <summary>计算方法与工程依据（点击展开 / 收起）</summary>
+    <div id="method"></div>
+  </details>
+</div>
+
+<!-- ============ 纯计算内核（与 calc_core.py 逐项一致，verify_web.js 抽取此处校验） ============ -->
+<script id="core">
+function scaleEnergy(eref, Vdc, I, Tj, alphaT, kv, ki, Vref, Iref, Tref){
+  return eref*Math.pow(Vdc/Vref,kv)*Math.pow(I/Iref,ki)*(1+alphaT*(Tj-Tref));
+}
+function solveDevice(p, dev){
+  dev = dev || p.DEVICE;
+  var n=Math.max(1,p.N_PARALLEL);
+  var iRms=p.IRMS/n*(1+p.K_IMBAL), iAvg=p.IAVG/n*(1+p.K_IMBAL);
+  var rth=p.RTH_JC+p.RTH_CS+p.RTH_SA;
+  var Tj=p.TA+30, rds, pCond, eon, eoff, err, pSw, pRr, pTotal, rdsMohm=null;
+  for(var it=0; it<60; it++){
+    if(dev==='SiC'){
+      rds=p.RDS_ON_25*1e-3*(1+p.RDS_TCO*(Tj-25));
+      pCond=rds*iRms*iRms;
+      eon=scaleEnergy(p.EON_REF,p.VDC,iRms,Tj,p.ALPHA_T,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+      eoff=scaleEnergy(p.EOFF_REF,p.VDC,iRms,Tj,p.ALPHA_T,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+      err=scaleEnergy(p.ERR_REF,p.VDC,iRms,Tj,0,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+      rdsMohm=rds*1e3;
+    } else {
+      pCond=p.VCE0*iAvg+p.RCE*1e-3*iRms*iRms;
+      eon=scaleEnergy(p.EON_REF_I,p.VDC,iRms,Tj,p.ALPHA_T_I,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+      eoff=scaleEnergy(p.EOFF_REF_I,p.VDC,iRms,Tj,p.ALPHA_T_I,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+      err=scaleEnergy(p.ERR_REF_I,p.VDC,iRms,Tj,p.ALPHA_T_I*0.5,p.KV,p.KI,p.VREF,p.IREF,p.TREF);
+    }
+    pSw=(eon+eoff)*p.FSW_KHZ; pRr=err*p.FSW_KHZ; pTotal=pCond+pSw+pRr;
+    var TjNew=p.TA+pTotal*rth;
+    if(Math.abs(TjNew-Tj)<1e-6){ Tj=TjNew; break; }
+    Tj=TjNew;
+  }
+  var margin=p.TJ_MAX-Tj, okTemp=margin>10;
+  var dTj=Math.max(1,Tj-p.TA);
+  var nf=p.NF_REF*Math.pow(p.DT_LIFE_REF/dTj,p.M_COFFIN);
+  return {device:dev,Vdc:p.VDC,fsw_khz:p.FSW_KHZ,n_parallel:n,
+    i_rms_dev:iRms,i_avg_dev:iAvg,rth_total:rth,rds_mohm:rdsMohm,
+    p_cond:pCond,eon:eon,eoff:eoff,err:err,p_sw:pSw,p_rr:pRr,p_total:pTotal,
+    Tj:Tj,margin:margin,ok_temp:okTemp,dTj:dTj,nf:nf,life_yr:nf/p.CYC_PER_YR};
+}
+</script>
+
+<script>
+var DEMO={
+  DEVICE:'SiC', VDC:800, IRMS:180, IAVG:120, FSW_KHZ:10, DUTY:0.5, TA:40,
+  RTH_JC:0.15, RTH_CS:0.05, RTH_SA:0.20, N_PARALLEL:2, K_IMBAL:0.05,
+  RDS_ON_25:8.0, RDS_TCO:0.0045,
+  EON_REF:1.20, EOFF_REF:0.80, ERR_REF:0.25, KV:1.3, KI:0.9, ALPHA_T:0.002,
+  TREF:25, VREF:800, IREF:200,
+  VCE0:0.9, RCE:4.0, EON_REF_I:3.5, EOFF_REF_I:4.2, ERR_REF_I:1.8, ALPHA_T_I:0.004,
+  TJ_MAX:150, DT_LIFE_REF:80, NF_REF:2e5, M_COFFIN:5.0, CYC_PER_YR:5e5
+};
+var FIELDS_OP=[
+  ['VDC','直流母线 Vdc','V'],['IRMS','桥臂电流 RMS','A'],['IAVG','桥臂电流均值','A'],
+  ['FSW_KHZ','开关频率','kHz'],['TA','环境温度','°C']
+];
+var FIELDS_DEV=[
+  ['N_PARALLEL','并联器件数',''],['K_IMBAL','电流不均衡系数',''],
+  ['RTH_JC','Rth 结→壳','K/W'],['RTH_CS','Rth 壳→散热器','K/W'],['RTH_SA','Rth 散热器→环境','K/W'],
+  ['RDS_ON_25','Rds(on)@25℃','mΩ'],['RDS_TCO','Rds温度系数','/K'],
+  ['EON_REF','Eon 参考','mJ'],['EOFF_REF','Eoff 参考','mJ'],['ERR_REF','Err 参考','mJ']
+];
+var FIELDS_SCALE=[
+  ['KV','电压缩放指数 kv',''],['KI','电流缩放指数 ki',''],['ALPHA_T','开关温敏 αT','/K'],
+  ['VREF','E参考电压','V'],['IREF','E参考电流','A'],['TREF','E参考温度','°C'],
+  ['TJ_MAX','结温上限','°C'],['NF_REF','寿命参考次数',''],['CYC_PER_YR','年循环次数','']
+];
+var cur=Object.assign({},DEMO), R=null, CMP=null;
+function fmt(v,d){ d=(d===undefined)?3:d; return Number(v).toFixed(d); }
+function buildTabs(){
+  var h='';
+  [['SiC','SiC MOSFET'],['IGBT','IGBT']].forEach(function(t){
+    h+='<button class="tab '+(cur.DEVICE===t[0]?'active':'')+'" onclick="switchDev(\''+t[0]+'\')">'+t[1]+'</button>';
+  });
+  document.getElementById('tabs').innerHTML=h;
+}
+function switchDev(d){ cur.DEVICE=d; buildTabs(); recalc(); }
+function devFields(){
+  var base=FIELDS_DEV.slice();
+  if(cur.DEVICE==='IGBT'){
+    return base.filter(function(f){return f[0]!=='RDS_ON_25'&&f[0]!=='RDS_TCO';})
+      .concat([['VCE0','Vce0 阈值','V'],['RCE','Rce 斜率','mΩ'],
+               ['EON_REF_I','Eon 参考(IGBT)','mJ'],['EOFF_REF_I','Eoff 参考(IGBT)','mJ']]);
+  }
+  return base;
+}
+function buildInputs(target, fields){
+  document.getElementById(target).innerHTML=fields.map(function(f){
+    return '<tr><td class="sym">'+f[0]+'</td><td>'+f[1]+'</td>'+
+      '<td class="val"><input type="number" step="any" id="i_'+f[0]+'" value="'+cur[f[0]]+'"></td>'+
+      '<td class="unit">'+f[2]+'</td></tr>';
+  }).join('');
+}
+function bindInputs(fields){
+  fields.forEach(function(f){
+    var el=document.getElementById('i_'+f[0]);
+    if(el) el.addEventListener('input',function(){
+      var v=parseFloat(this.value); if(!isNaN(v)){ cur[f[0]]=v; recalc(); }
+    });
+  });
+}
+function loadDemo(){
+  cur=Object.assign({},DEMO); buildTabs();
+  buildInputs('tbOp',FIELDS_OP); buildInputs('tbDev',devFields()); buildInputs('tbScale',FIELDS_SCALE);
+  bindInputs(FIELDS_OP); bindInputs(devFields()); bindInputs(FIELDS_SCALE); recalc();
+}
+function rowsHTML(rows){ return rows.map(function(r){
+  return '<tr><td class="sym">'+r[0]+'</td><td>'+r[1]+'</td><td class="res calc-val">'+r[2]+'</td><td class="unit">'+(r[3]||'')+'</td></tr>';
+}).join(''); }
+function chkHTML(c,label,detail){ return '<tr><td>'+label+'</td><td>'+detail+'</td><td class="res"><span class="chkbox '+(c?'PASS':'FAIL')+'">'+(c?'PASS':'FAIL')+'</span></td></tr>'; }
+function recalc(){
+  R=solveDevice(cur,cur.DEVICE); CMP=solveDevice(cur,'SiC'); CMP={sic:CMP,igbt:solveDevice(cur,'IGBT')};
+  var dev=cur.DEVICE;
+  document.getElementById('hint').textContent=dev+' · '+R.n_parallel+'管并联 · '+fmt(R.p_total,1)+'W/管 · Tj='+fmt(R.Tj,1)+'°C';
+  document.getElementById('tjmax').textContent=fmt(cur.TJ_MAX,0);
+
+  var lossRows=[
+    ['Pcond','导通损耗',fmt(R.p_cond,2),'W'],
+    ['Eon','单次开通能量',fmt(R.eon,3),'mJ'],
+    ['Eoff','单次关断能量',fmt(R.eoff,3),'mJ'],
+    ['Err','反向恢复能量',fmt(R.err,3),'mJ'],
+    ['Psw','开关损耗',fmt(R.p_sw,2),'W'],
+    ['Prr','反向恢复损耗',fmt(R.p_rr,2),'W'],
+    ['Ptotal','总损耗',fmt(R.p_total,2),'W']
+  ];
+  document.getElementById('tbLoss').innerHTML=rowsHTML(lossRows);
+  var mx=R.p_total||1;
+  function bar(lb,v,color){ return '<div class="barrow"><div class="lb">'+lb+'</div><div class="track"><div class="fill" style="width:'+(100*v/mx).toFixed(1)+'%;background:'+color+'"></div></div><div class="vl">'+fmt(v,1)+'W</div></div>'; }
+  document.getElementById('lossBars').innerHTML=
+    bar('导通',R.p_cond,'#2563eb')+bar('开关',R.p_sw,'#b45309')+bar('反恢复',R.p_rr,'#7c3aed');
+
+  var th=[
+    ['Irms/管','最热管电流',fmt(R.i_rms_dev,1),'A'],
+    ['Rth','总热阻',fmt(R.rth_total,3),'K/W'],
+    ['Ta','环境温度',fmt(cur.TA,1),'°C']
+  ];
+  if(R.rds_mohm!==null) th.push(['Rds@Tj','热态导通电阻',fmt(R.rds_mohm,2),'mΩ']);
+  th.push(['ΔTj','结温升',fmt(R.dTj,1),'K']);
+  document.getElementById('tbThermal').innerHTML=rowsHTML(th);
+
+  document.getElementById('bigTj').textContent=fmt(R.Tj,1);
+  document.getElementById('tbChk').innerHTML=
+    chkHTML(R.ok_temp,'结温裕度 >10K',fmt(R.margin,1)+' K')+
+    chkHTML(R.Tj<cur.TJ_MAX,'Tj < '+fmt(cur.TJ_MAX,0)+'°C',fmt(R.Tj,1)+'°C')+
+    chkHTML(R.life_yr>5,'寿命估算 >5 年',fmt(R.life_yr,1)+' 年');
+  var sug=[];
+  if(!R.ok_temp) sug.push('结温裕度不足：增加并联管数、降低开关频率、改善散热（减小 Rth）或换更大电流等级器件。');
+  if(R.life_yr<=5) sug.push('功率循环寿命偏低（'+fmt(R.life_yr,1)+'年）：主要受结温摆幅影响，降低损耗或改善散热可显著延长寿命（Coffin-Manson 5 次方敏感）。');
+  if(dev==='IGBT'&&CMP.sic.p_total<R.p_total*0.8) sug.push('同工况 SiC 总损耗 '+fmt(CMP.sic.p_total,1)+'W，仅为 IGBT 的 '+fmt(100*CMP.sic.p_total/R.p_total,0)+'%——高频场景建议评估换 SiC。');
+  document.getElementById('sugg').innerHTML=sug.length?('调整建议：<br>· '+sug.join('<br>· ')):'结温与寿命校核通过。';
+
+  var ch='<thead><tr><th>器件</th><th>Pcond(W)</th><th>Psw(W)</th><th>Prr(W)</th><th>总损耗(W)</th><th>Tj(°C)</th><th>寿命(年)</th></tr></thead><tbody>';
+  [['SiC',CMP.sic],['IGBT',CMP.igbt]].forEach(function(pair){
+    var s=pair[1], isCur=(pair[0]===dev);
+    ch+='<tr'+(isCur?' class="best"':'')+'>'+
+      '<td'+(isCur?' class="best"':'')+'>'+pair[0]+(isCur?'<span class="tag">当前</span>':'')+'</td>'+
+      '<td class="res">'+fmt(s.p_cond,1)+'</td><td class="res">'+fmt(s.p_sw,1)+'</td>'+
+      '<td class="res">'+fmt(s.p_rr,1)+'</td><td class="res">'+fmt(s.p_total,1)+'</td>'+
+      '<td class="res">'+fmt(s.Tj,1)+'</td><td class="res">'+fmt(s.life_yr,1)+'</td></tr>';
+  });
+  document.getElementById('tbCmp').innerHTML=ch+'</tbody>';
+}
+function copyReport(){
+  var t=['器件损耗与结温评估',
+    '器件='+R.device+', Vdc='+cur.VDC+'V, fs='+cur.FSW_KHZ+'kHz, 并联='+R.n_parallel,
+    '最热管 Irms='+fmt(R.i_rms_dev,1)+'A, 总热阻='+fmt(R.rth_total,3)+'K/W',
+    '导通='+fmt(R.p_cond,1)+'W, 开关='+fmt(R.p_sw,1)+'W, 反恢复='+fmt(R.p_rr,1)+'W, 总损耗='+fmt(R.p_total,1)+'W',
+    'Eon='+fmt(R.eon,3)+'mJ, Eoff='+fmt(R.eoff,3)+'mJ, Err='+fmt(R.err,3)+'mJ',
+    '结温 Tj='+fmt(R.Tj,1)+'°C (上限'+cur.TJ_MAX+'°C, 裕度'+fmt(R.margin,1)+'K)',
+    '寿命估算='+fmt(R.life_yr,1)+'年, 判定='+(R.ok_temp?'PASS':'FAIL')].join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){alert('结果已复制');});
+  else alert(t);
+}
+document.getElementById('method').innerHTML=
+  '<p><b>① 导通损耗</b>：SiC <code>Pcond=Rds(on)(Tj)·Irms²</code>，'+
+  '<code>Rds(on)=Rds25·(1+α·(Tj−25℃))</code>；IGBT <code>Pcond=Vce0·Iavg+Rce·Irms²</code>。'+
+  '并联 n 管均流，最热管电流 <code>I/n·(1+kimb)</code>。</p>'+
+  '<p><b>② 开关损耗</b>：参考点 Eref 缩放 '+
+  '<code>E=Eref·(Vdc/Vref)^kv·(I/Iref)^ki·(1+αT·(Tj−Tref))</code>，'+
+  '<code>kv≈1.3, ki≈0.9</code>；SiC αT≈0.002/K（Eoff 温度不敏感），'+
+  'IGBT αT≈0.004/K 且 Eoff 含拖尾电流显著更大。<code>Psw=(Eon+Eoff)·fsw</code>。</p>'+
+  '<p><b>③ 反向恢复</b>：<code>Prr=Err·fsw</code>，SiC 肖特基特性 Err 很小，IGBT 反并联二极管 Err 较大。</p>'+
+  '<p><b>④ 结温闭环</b>：<code>Tj=Ta+Ptotal·(RthJC+RthCS+RthSA)</code>，'+
+  '因 Rds(on) 依赖 Tj，迭代至自洽（收敛判据 1e-6）。</p>'+
+  '<p><b>⑤ 寿命</b>：Coffin-Manson 功率循环 <code>Nf=Nf_ref·(ΔTj_ref/ΔTj)^m</code>，'+
+  'm≈5，寿命 = Nf / 年循环次数。结温摆幅每降 10%，寿命约翻倍——这是最敏感的杠杆。</p>'+
+  '<p class="small">器件参数为 1200V/200A 级别工程典型值（按数据手册核对），'+
+  'Eon/Eoff/Err 必须在选定实际料号后按对应曲线重填。网页与 Python 内核逐项交叉验证一致。</p>';
+loadDemo();
+</script>
+</body>
+</html>

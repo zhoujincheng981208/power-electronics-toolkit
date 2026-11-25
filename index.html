@@ -9,8 +9,50 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
+  <style>
+    /* ===== 统一门户工具条（新增，不改动原有页面结构） ===== */
+    #hub-bar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:10px;
+      flex-wrap:wrap;padding:10px 18px;margin:0 0 4px;
+      background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(217,240,237,.9));
+      border:1px solid rgba(255,255,255,.72);border-radius:0 0 18px 18px;
+      box-shadow:0 8px 24px rgba(23,32,42,.08);backdrop-filter:blur(16px)}
+    #hub-bar .hub-brand{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--accent);
+      font-size:15px;letter-spacing:.3px;margin-right:6px;white-space:nowrap}
+    #hub-bar .hub-brand .hub-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
+      box-shadow:0 0 0 4px rgba(15,118,110,.14)}
+    .hub-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:11px;
+      border:1px solid var(--line);background:rgba(255,255,255,.85);color:var(--muted);
+      font-size:13px;cursor:pointer;transition:.18s;white-space:nowrap}
+    .hub-btn:hover{color:var(--ink);border-color:var(--accent);transform:translateY(-1px)}
+    .hub-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);
+      box-shadow:0 4px 12px rgba(15,118,110,.3)}
+    .hub-btn .hub-tag{font-size:11px;opacity:.72}
+    #hub-frame-wrap{display:none;position:relative;width:min(1500px,calc(100% - 32px));
+      margin:12px auto 32px;height:calc(100vh - 92px);min-height:560px;
+      border-radius:18px;overflow:hidden;border:1px solid var(--line);
+      background:#fff;box-shadow:var(--shadow)}
+    #hub-frame-wrap.open{display:block}
+    #hub-frame{width:100%;height:100%;border:0;display:block;background:#fff}
+    body.hub-mode .page-shell{display:none}
+    @media(max-width:900px){#hub-bar{gap:7px;padding:9px 12px}.hub-btn{font-size:12px;padding:6px 10px}}
+  </style>
 </head>
 <body>
+  <!-- ===== 统一门户工具条：点击在下方 iframe 内嵌打开对应工具 ===== -->
+  <header id="hub-bar">
+    <div class="hub-brand"><span class="hub-dot"></span>电力电子工具平台</div>
+    <button class="hub-btn active" type="button" data-app="" data-label="总览">总览</button>
+    <button class="hub-btn" type="button" data-app="apps/lcl/index.html" data-label="LCL 电感设计">LCL 电感设计<span class="hub-tag">磁性</span></button>
+    <button class="hub-btn" type="button" data-app="apps/sampling/index.html" data-label="采样电路计算">采样电路<span class="hub-tag">测量</span></button>
+    <button class="hub-btn" type="button" data-app="apps/qr/index.html" data-label="QR 反激频率">QR 反激<span class="hub-tag">电源</span></button>
+    <button class="hub-btn" type="button" data-app="apps/pi/index.html" data-label="PI 整定">PI 整定<span class="hub-tag">控制</span></button>
+    <button class="hub-btn" type="button" data-app="apps/magnetics/index.html" data-label="磁性元件设计">磁性元件<span class="hub-tag">磁性</span></button>
+    <button class="hub-btn" type="button" data-app="apps/device-loss/index.html" data-label="器件损耗结温">器件损耗<span class="hub-tag">器件</span></button>
+    <button class="hub-btn" type="button" data-app="apps/anpc/index.html" data-label="ANPC 三电平评估">ANPC 三电平<span class="hub-tag">拓扑</span></button>
+    <button class="hub-btn" type="button" data-app="apps/efficiency/index.html" data-label="效率温升测试分析">效率温升测试<span class="hub-tag">测试</span></button>
+  </header>
+  <div id="hub-frame-wrap"><iframe id="hub-frame" title="工具内嵌窗口"></iframe></div>
+
   <div class="page-shell">
     <nav class="side-nav" aria-label="页面导航">
       <p class="eyebrow">Navigation</p>
@@ -357,6 +399,42 @@
   </template>
 
   <script src="./app.js"></script>
+  <script>
+    // ===== 统一门户切换逻辑（独立，不影响 app.js） =====
+    (function(){
+      var bar=document.getElementById('hub-bar');
+      var wrap=document.getElementById('hub-frame-wrap');
+      var frame=document.getElementById('hub-frame');
+      var btns=bar.querySelectorAll('.hub-btn');
+      function activate(b){
+        btns.forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+        var app=b.getAttribute('data-app');
+        if(!app){
+          // 总览：关闭 iframe，恢复原页面
+          wrap.classList.remove('open');
+          document.body.classList.remove('hub-mode');
+          frame.src='about:blank';
+          window.scrollTo(0,0);
+        }else{
+          // 工具：内嵌打开
+          frame.src=app;
+          wrap.classList.add('open');
+          document.body.classList.add('hub-mode');
+          window.scrollTo(0,0);
+        }
+      }
+      btns.forEach(function(b){b.addEventListener('click',function(){activate(b);});});
+      // 支持 ?app=apps/anpc/index.html 直接进入某工具（便于分享/验证）
+      var m=location.search.match(/[?&]app=([^&]+)/);
+      if(m){
+        var target=decodeURIComponent(m[1]);
+        var hit=null;
+        btns.forEach(function(b){if(b.getAttribute('data-app')===target) hit=b;});
+        if(hit) activate(hit);
+      }
+    })();
+  </script>
 </body>
 </html>
 

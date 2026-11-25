@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PCS 效率与温升测试数据分析平台</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --txt:#0f172a; --sub:#64748b; --line:#d8e1ec;
+    --acc:#2563eb; --inp:#fffbeb; --calc:#f8fafc; --ok:#f0fdf4;
+    --pass:#059669; --fail:#dc2626; --warn:#d97706;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px 20px 60px}
+  header h1{margin:0 0 6px;font-size:25px;letter-spacing:.3px}
+  header .desc{color:var(--sub);font-size:13px;margin-bottom:20px}
+  header .desc b{color:var(--acc)}
+  .grid3{display:grid;grid-template-columns:1fr 1.25fr;gap:18px;align-items:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;box-shadow:0 2px 10px rgba(15,23,42,.05);margin-bottom:16px}
+  .card.inp{background:var(--inp)}
+  .card.calc{background:var(--calc)}
+  .card.ok{background:var(--ok)}
+  .card h2{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--acc)}
+  .card.inp h2 .dot{background:#d97706}
+  .card.ok h2 .dot{background:var(--pass)}
+  .hint{font-size:11px;color:var(--sub);margin:-6px 0 10px}
+  label.fld{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+  label.fld span{width:130px;color:var(--sub);flex-shrink:0}
+  input[type=number],input[type=text],select{border:1px solid var(--line);border-radius:6px;
+    padding:5px 8px;font-size:13px;width:100%;background:#fff;color:var(--txt)}
+  input.mini{width:88px}
+  table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:5px 6px;text-align:center}
+  th{background:#eef2f7;font-weight:600;color:var(--sub)}
+  td input{border:1px solid #e2e8f0;border-radius:4px;padding:3px 5px;width:100%;text-align:center;font-size:12px}
+  .rowbtns button,.mini-btn{border:1px solid var(--line);background:#fff;border-radius:5px;
+    cursor:pointer;padding:3px 9px;font-size:12px;color:var(--acc)}
+  .mini-btn:hover{border-color:var(--acc)}
+  .mini-btn.danger{color:var(--fail)}
+  textarea{width:100%;min-height:66px;border:1px solid var(--line);border-radius:6px;
+    padding:7px 9px;font-family:Consolas,monospace;font-size:11px;resize:vertical;background:#fff}
+  .subhd{font-size:12px;font-weight:600;color:var(--sub);margin:14px 0 4px;
+    padding-left:8px;border-left:3px solid var(--acc)}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 14px;
+    cursor:pointer;font-size:13px;color:var(--sub)}
+  .tab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+    min-width:0;box-shadow:0 3px 12px rgba(15,23,42,.06)}
+  .kpi .k-lbl{font-size:11px;color:var(--sub);white-space:nowrap}
+  .kpi .k-val{font-size:25px;font-weight:700;font-family:Consolas,monospace;
+    line-height:1.15;margin-top:4px;white-space:nowrap}
+  .kpi .k-val em{font-size:12px;font-style:normal;color:var(--sub);margin-left:3px}
+  .kpi .k-sub{font-size:10px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi.good .k-val{color:var(--pass)} .kpi.bad .k-val{color:var(--fail)} .kpi.warn .k-val{color:var(--warn)}
+  svg.chart{width:100%;height:auto;display:block}
+  .chart-wrap{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--sub);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .chkbox{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11px;font-weight:600}
+  .chkbox.PASS{background:#d1fae5;color:var(--pass)} .chkbox.FAIL{background:#fee2e2;color:var(--fail)}
+  .res{font-family:Consolas,monospace}
+  .pad{padding:8px 0}
+  .small{font-size:11px;color:var(--sub);line-height:1.7}
+  .bar{height:16px;border-radius:3px;display:inline-block;vertical-align:middle}
+  .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:20px}
+  .stestable table{font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>PCS 效率与温升测试数据分析平台</h1>
+  <div class="desc"><b>测试工程师工具</b> · 导入实测数据 → 效率曲线 + 损耗分离 + 加权效率 → 热稳态判定 + 温升 + 热阻反推 → 自动校核 PASS/FAIL</div>
+</header>
+
+<!-- ============ 核心计算脚本（供 verify_web.js 抽取比对，勿改 UI 逻辑） ============ -->
+<script id="core">
+// ===== 常量（与 calc_core.py 一致）=====
+var NF_REF=2e5, DT_LIFE_REF=80.0, M_COFFIN=5.0, CYC_PER_YR=5e5;
+var DEFAULT_WEIGHTS=[
+  {load:5,w:0.03},{load:10,w:0.06},{load:20,w:0.13},
+  {load:30,w:0.10},{load:50,w:0.48},{load:100,w:0.20}
+];
+
+// 由电压/电流/功率因数算功率[W]。3ph 三相线电压线电流；1ph 单相
+function power_from_ui(u,i,pf,mode){
+  if(mode==='3ph') return Math.sqrt(3)*u*i*(pf>0?pf:1);
+  return u*i;
+}
+
+// 单个负载点：效率%、损耗W。实测功率优先，否则由 U/I 算
+function eff_point(pt){
+  var mode=pt.mode||'3ph';
+  var pin=pt.pin||0, pout=pt.pout||0;
+  if(pin<=0) pin=power_from_ui(pt.u||0,pt.i||0,(pt.pf!==undefined?pt.pf:1),mode);
+  if(pout<=0) pout=pt.pout||0;
+  var eta=pin>0?pout/pin*100:0;
+  return {load:pt.load||0,pin:pin,pout:pout,eta:eta,loss:pin-pout,mode:mode};
+}
+
+// 线性插值取目标负载率下的效率；超出范围取端点
+function interp_eta(pts,target){
+  if(!pts.length) return 0;
+  if(target<=pts[0].load) return pts[0].eta;
+  if(target>=pts[pts.length-1].load) return pts[pts.length-1].eta;
+  for(var k=1;k<pts.length;k++){
+    if(target<=pts[k].load){
+      var a=pts[k-1],b=pts[k];
+      if(b.load===a.load) return b.eta;
+      var r=(target-a.load)/(b.load-a.load);
+      return a.eta+r*(b.eta-a.eta);
+    }
+  }
+  return pts[pts.length-1].eta;
+}
+
+// 加权效率：按权重表负载率插值取 η，ηw = Σ(w·η)/Σw
+function weighted_efficiency(points,weights){
+  if(!points.length||!weights.length) return [0,[]];
+  var pts=points.slice().sort(function(a,b){return a.load-b.load;});
+  var tw=0,twe=0,detail=[];
+  for(var k=0;k<weights.length;k++){
+    var target=weights[k].load,w=weights[k].w;
+    var eta=interp_eta(pts,target);
+    tw+=w; twe+=w*eta;
+    detail.push({load:target,w:w,eta:eta});
+  }
+  return [tw>0?twe/tw:0,detail];
+}
+
+// 单个测点：热稳态判定、稳态温度、温升、热阻反推
+function thermal_point(series,ta,delta,window){
+  var out={ss:false,t_ss:0,temp_ss:0,dt:0,ploss_ss:0,rth:0,t_end:0,n_win:0};
+  if(series.length<2){
+    out.temp_ss=series.length?series[0].temp:ta;
+    out.dt=out.temp_ss-ta;
+    return out;
+  }
+  var ss=series.slice().sort(function(a,b){return a.t-b.t;});
+  var tEnd=ss[ss.length-1].t; out.t_end=tEnd;
+  // 从后往前找跨度 >= window 的最短稳态窗口
+  var startI=null;
+  for(var i=ss.length-1;i>=0;i--){
+    if(tEnd-ss[i].t>=window){startI=i;break;}
+  }
+  var win;
+  if(startI===null){
+    win=ss; out.n_win=win.length;
+    if(win.length>=2){
+      var slope=(win[win.length-1].temp-win[0].temp)/Math.max(1e-9,win[win.length-1].t-win[0].t);
+      out.ss=Math.abs(slope)<delta;
+    }
+  }else{
+    win=ss.slice(startI); out.n_win=win.length;
+    var maxSlope=0;
+    for(var k=1;k<win.length;k++){
+      var dtt=win[k].t-win[k-1].t;
+      if(dtt>0) maxSlope=Math.max(maxSlope,Math.abs((win[k].temp-win[k-1].temp)/dtt));
+    }
+    out.ss=maxSlope<delta;
+  }
+  var n=win.length,sumT=0,sumP=0;
+  for(var j=0;j<n;j++){sumT+=win[j].temp;sumP+=(win[j].loss||0);}
+  out.temp_ss=sumT/n; out.ploss_ss=sumP/n;
+  out.dt=out.temp_ss-ta;
+  out.rth=out.ploss_ss>0?out.dt/out.ploss_ss:0;
+  return out;
+}
+
+// Coffin-Manson 寿命估算
+function life_from_dt(dt){
+  var dj=Math.max(1.0,Math.abs(dt));
+  var nf=NF_REF*Math.pow(DT_LIFE_REF/dj,M_COFFIN);
+  return {nf:nf,life_yr:nf/CYC_PER_YR};
+}
+
+// 主求解入口。data 结构与 Python solve(data) 一致
+function solve(data){
+  var ta=data.ta!==undefined?data.ta:25.0;
+  var delta=data.delta!==undefined?data.delta:0.10;
+  var window=data.window!==undefined?data.window:10.0;
+  var etaMin=data.eta_min!==undefined?data.eta_min:98.0;
+  var etawMin=data.etaw_min!==undefined?data.etaw_min:97.5;
+  var dtMax=data.dt_max!==undefined?data.dt_max:60.0;
+  var rthDesign=data.rth_design!==undefined?data.rth_design:0.40;
+  var rthTol=data.rth_tol!==undefined?data.rth_tol:0.20;
+
+  var raw=data.points||[];
+  var pts=[];
+  for(var k=0;k<raw.length;k++){
+    var p=raw[k];
+    if((p.pin||0)>0||(p.u||0)>0) pts.push(eff_point(p));
+  }
+  for(var a=0;a<pts.length;a++) pts[a].ok_eta=pts[a].eta>=etaMin;
+
+  var weights=data.weights&&data.weights.length?data.weights:DEFAULT_WEIGHTS;
+  var we=weighted_efficiency(pts,weights);
+  var etaW=we[0],wdetail=we[1],okEtaw=etaW>=etawMin;
+
+  var thermals=[];
+  var rawT=data.thermals||[];
+  for(var m=0;m<rawT.length;m++){
+    var tp=rawT[m];
+    var r=thermal_point(tp.series||[],ta,delta,window);
+    r.name=tp.name||'测点';
+    r.ok_dt=r.dt<=dtMax;
+    var hi=rthDesign*(1+rthTol);
+    r.ok_rth=(r.rth>0)&&(r.rth<=hi);
+    r.rth_hi=hi;
+    var life=life_from_dt(r.dt);
+    r.nf=life.nf; r.life_yr=life.life_yr;
+    thermals.push(r);
+  }
+
+  var allOk=pts.length>0;
+  for(var x=0;x<pts.length;x++) if(!pts[x].ok_eta) allOk=false;
+  if(!okEtaw) allOk=false;
+  for(var y=0;y<thermals.length;y++) if(!thermals[y].ok_dt||!thermals[y].ok_rth) allOk=false;
+
+  return {points:pts,eta_w:etaW,wdetail:wdetail,ok_etaw:okEtaw,
+    thermals:thermals,all_ok:allOk,eta_min:etaMin,etaw_min:etawMin,dt_max:dtMax,
+    rth_design:rthDesign,rth_tol:rthTol,ta:ta};
+}
+
+// 单元格值转数值；'/'、空、非数字 → null
+function _num_or_none(v){
+  if(v===null||v===undefined) return null;
+  if(typeof v==='number') return isNaN(v)?null:v;
+  var s=String(v).trim();
+  if(s===''||s==='/') return null;
+  var x=parseFloat(s);
+  return isNaN(x)?null:x;
+}
+
+// 快照表模式：适配 PCS 热测试表（一个时间点=一个快照，每行一个测点）
+// 折算温度 = 原始温度 − baseline + target；按 channel 唯一键对齐
+function solve_snapshot(data){
+  var baseline=data.baseline;
+  var target=data.target!==undefined?data.target:50.0;
+  var lossW=data.loss_w||0;
+  var rthDesign=data.rth_design!==undefined?data.rth_design:0.40;
+  var rthTol=data.rth_tol!==undefined?data.rth_tol:0.20;
+  var rthHi=rthDesign*(1+rthTol);
+
+  var snaps=[];
+  (data.snapshots||[]).forEach(function(s){
+    var rows=[];
+    (s.rows||[]).forEach(function(r){
+      var t=_num_or_none(r.temp), lim=_num_or_none(r.limit);
+      var tc=(t!==null&&baseline!==null&&baseline!==undefined)?(t-baseline+target):null;
+      var ok=(tc!==null&&lim!==null)?(tc<=lim):null;
+      rows.push({channel:String(r.channel||'').trim(),name:r.name||'',
+        temp:t,limit:lim,t_conv:tc,ok:ok,
+        margin:(tc!==null&&lim!==null)?(lim-tc):null});
+    });
+    snaps.push({time_min:parseFloat(s.time_min)||0,rows:rows});
+  });
+  snaps.sort(function(a,b){return a.time_min-b.time_min;});
+  var times=snaps.map(function(s){return s.time_min;});
+
+  // 按 channel 建唯一键列表
+  var channels=[],seen={};
+  snaps.forEach(function(s){s.rows.forEach(function(r){
+    var c=r.channel;
+    if(c&&!seen[c]){seen[c]=1;channels.push(c);}
+  });});
+
+  var matrix=[];
+  channels.forEach(function(c){
+    var raw=[],conv=[],limits=[],name='';
+    snaps.forEach(function(s){
+      var hit=null;
+      for(var q=0;q<s.rows.length;q++){if(s.rows[q].channel===c){hit=s.rows[q];break;}}
+      if(hit){
+        name=hit.name||name;
+        raw.push(hit.temp);conv.push(hit.t_conv);limits.push(hit.limit);
+      }else{raw.push(null);conv.push(null);limits.push(null);}
+    });
+    var valid=conv.filter(function(x){return x!==null;});
+    var tMax=valid.length?Math.max.apply(null,valid):null;
+    var slope=null;
+    if(conv.length>=2&&conv[conv.length-1]!==null&&conv[conv.length-2]!==null&&times[times.length-1]!==times[times.length-2]){
+      slope=(conv[conv.length-1]-conv[conv.length-2])/(times[times.length-1]-times[times.length-2]);
+    }
+    var okAll=null,checks=[];
+    for(var i=0;i<conv.length;i++){
+      if(conv[i]!==null&&limits[i]!==null){
+        checks.push({time:times[i],t_conv:conv[i],limit:limits[i],margin:limits[i]-conv[i],ok:conv[i]<=limits[i]});
+      }
+    }
+    if(checks.length){okAll=checks.every(function(k){return k.ok;});}
+    var dt=(tMax!==null)?(tMax-target):null;
+    var rth=(dt!==null&&lossW>0)?(dt/lossW):null;
+    var lf=life_from_dt(dt||0);
+    matrix.push({channel:c,name:name,raw:raw,conv:conv,limit:limits,t_max:tMax,slope:slope,
+      checks:checks,ok:okAll,dt:dt,rth:rth,
+      ok_rth:(rth!==null)?(rth<=rthHi):null,
+      life_yr:(dt!==null)?lf.life_yr:null});
+  });
+
+  var nFail=0,nJudge=0;
+  matrix.forEach(function(m){if(m.ok!==null){nJudge++;if(m.ok===false)nFail++;}});
+  return {snapshots:snaps,times:times,matrix:matrix,baseline:baseline,target:target,loss_w:lossW,
+    n_points:matrix.length,n_judge:nJudge,n_fail:nFail,all_ok:(nJudge>0&&nFail===0),rth_hi:rthHi};
+}
+</script>
+
+<div class="grid3">
+  <!-- ==================== 左：输入区 ==================== -->
+  <div>
+    <div class="card inp">
+      <h2><span class="dot"></span>① 工况与校核阈值</h2>
+      <div class="hint">黄色区域为实测数据输入，改完即时联动计算</div>
+      <label class="fld"><span>环境温度 Ta (°C)</span><input type="number" class="mini" id="ta" value="25" step="0.5"></label>
+      <label class="fld"><span>效率下限 η_min (%)</span><input type="number" class="mini" id="eta_min" value="98" step="0.1"></label>
+      <label class="fld"><span>加权效率下限 (%)</span><input type="number" class="mini" id="etaw_min" value="97.5" step="0.1"></label>
+      <label class="fld"><span>温升上限 ΔT_max (K)</span><input type="number" class="mini" id="dt_max" value="60" step="1"></label>
+      <label class="fld"><span>设计热阻 (K/W)</span><input type="number" class="mini" id="rth_design" value="0.40" step="0.01"></label>
+      <label class="fld"><span>热阻容差</span><input type="number" class="mini" id="rth_tol" value="0.20" step="0.01"></label>
+      <label class="fld"><span>稳态斜率阈值 (K/min)</span><input type="number" class="mini" id="delta" value="0.10" step="0.01"></label>
+      <label class="fld"><span>稳态窗口 (min)</span><input type="number" class="mini" id="window" value="10" step="1"></label>
+    </div>
+
+    <div class="card inp">
+      <h2><span class="dot"></span>② 效率测试数据（负载点）</h2>
+      <div class="hint">实测功率优先；留空 Pin/Pout 时按 U/I/pf 自动算。可表内直接改，或从下面粘贴 Excel/CSV</div>
+      <div class="subhd">负载点表格</div>
+      <table id="ptTable">
+        <thead><tr><th>负载%</th><th>Pin kW</th><th>Pout kW</th><th>U V</th><th>I A</th><th>pf</th><th>制式</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="rowbtns" style="margin-top:8px"><button class="mini-btn" onclick="addPoint()">+ 加一行</button></div>
+      <div class="subhd">批量粘贴（Excel 复制整块区域 / CSV）</div>
+      <textarea id="ptPaste" placeholder="每行一个负载点，列顺序：负载%, Pin(kW), Pout(kW)&#10;例：&#10;10, 105, 100&#10;20, 204, 200&#10;50, 505, 500&#10;100, 1015, 1000"></textarea>
+      <div class="rowbtns" style="margin-top:6px"><button class="mini-btn" onclick="pastePoints()">解析并导入</button><button class="mini-btn danger" onclick="clearPaste('ptPaste')">清空</button></div>
+    </div>
+
+    <div class="card inp">
+      <h2><span class="dot"></span>③ 加权效率权重表（可编辑）</h2>
+      <div class="hint">默认欧洲效率权重，按你公司标准核对后修改。留空负载率的行自动对齐到最近测试点</div>
+      <table id="wtTable">
+        <thead><tr><th>负载%</th><th>权重 w</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="rowbtns" style="margin-top:8px"><button class="mini-btn" onclick="addWeight()">+ 加一行</button><button class="mini-btn" onclick="resetWeights()">恢复默认</button></div>
+    </div>
+
+    <div class="card inp">
+      <h2><span class="dot"></span>④ 温升测试数据（多测点）</h2>
+      <div class="tabs" id="thModeTabs" style="margin-bottom:10px">
+        <div class="tab" data-m="series" onclick="switchThMode('series')">时间序列模式</div>
+        <div class="tab on" data-m="snap" onclick="switchThMode('snap')">快照表模式（PCS测温表）</div>
+      </div>
+
+      <!-- 时间序列模式（原有） -->
+      <div id="thModeSeries" style="display:none">
+        <div class="hint">每个测点一组温度-时间序列。切换测点编辑，支持批量粘贴</div>
+        <div class="tabs" id="sensorTabs"></div>
+        <div class="rowbtns" style="margin-bottom:8px">
+          <button class="mini-btn" onclick="addSensor()">+ 加测点</button>
+          <button class="mini-btn danger" onclick="delSensor()">删除当前测点</button>
+        </div>
+        <label class="fld"><span>当前测点名称</span><input type="text" id="sensorName" oninput="onSensorName()" value="IGBT壳温"></label>
+        <table id="thTable">
+          <thead><tr><th>时间 min</th><th>温度 °C</th><th>损耗 W</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="rowbtns" style="margin-top:8px"><button class="mini-btn" onclick="addThermal()">+ 加一行</button></div>
+        <div class="subhd">批量粘贴温度序列（时间, 温度, 损耗W）</div>
+        <textarea id="thPaste" placeholder="每行：时间(min), 温度(°C), 损耗(W)&#10;例：&#10;0, 26, 140&#10;10, 52, 140&#10;20, 68, 140&#10;..."></textarea>
+        <div class="rowbtns" style="margin-top:6px"><button class="mini-btn" onclick="pasteThermal()">粘贴导入当前测点</button><button class="mini-btn danger" onclick="clearPaste('thPaste')">清空</button></div>
+      </div>
+
+      <!-- 快照表模式（新增） -->
+      <div id="thModeSnap">
+        <div class="hint">一个时间点一个快照页（对应测温表的一个 Sheet）。每页直接框选 B:通道 / C:位置 / D:原始温度 / G:限值 四列粘贴</div>
+        <label class="fld"><span>基准进水口温度 (℃)</span><input type="number" class="mini" id="snapBase" value="30.25" step="0.01"></label>
+        <label class="fld"><span>折算目标温度 (℃)</span><input type="number" class="mini" id="snapTarget" value="50" step="0.5"></label>
+        <label class="fld"><span>损耗 W (算热阻用)</span><input type="number" class="mini" id="snapLoss" value="0" step="1"></label>
+        <div class="hint" style="margin:4px 0">折算温度 = 原始温度 − 基准 + 目标；限值列可留空或填 "/" 表示不判</div>
+        <div class="tabs" id="snapTabs"></div>
+        <div class="rowbtns" style="margin:8px 0">
+          <button class="mini-btn" onclick="addSnap()">+ 加时间点</button>
+          <button class="mini-btn danger" onclick="delSnap()">删除当前时间点</button>
+          <button class="mini-btn" onclick="autoBase()">用当前页CH1-1-1做基准</button>
+        </div>
+        <label class="fld"><span>当前时间点 (min)</span><input type="number" class="mini" id="snapTime" oninput="onSnapTime()" value="20" step="1"></label>
+        <textarea id="snapPaste" style="min-height:200px" placeholder="从测温表框选四列粘贴：&#10;通道 [Tab] 测试位置 [Tab] 原始温度 [Tab] 限值&#10;例：&#10;CH1-1-1[℃]	PCS进水口	30.25	/&#10;CH1-1-7[℃]	交流电容C6	37.9	95&#10;CH1-1-8[℃]	IGBT-A1	/	120"></textarea>
+        <div class="rowbtns" style="margin-top:6px"><button class="mini-btn" onclick="pasteSnap()">解析当前页</button><button class="mini-btn danger" onclick="clearPaste('snapPaste')">清空</button></div>
+        <div class="pad small" id="snapCount"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 右：计算 + 校核区 ==================== -->
+  <div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="tabs" id="viewTabs">
+      <div class="tab on" data-v="eff">效率分析</div>
+      <div class="tab" data-v="th">温升分析</div>
+      <div class="tab" data-v="chk">校核总表</div>
+    </div>
+
+    <div id="panelEff">
+      <div class="card calc">
+        <h2><span class="dot"></span>效率曲线（η — 负载率）</h2>
+        <div class="chart-wrap" id="effChart"></div>
+        <div class="legend"><span><i style="background:#2563eb"></i>实测效率 η</span><span><i style="background:#d97706"></i>效率下限</span></div>
+      </div>
+      <div class="card calc">
+        <h2><span class="dot"></span>各负载点损耗</h2>
+        <table id="lossTable"><thead><tr><th>负载%</th><th>Pin kW</th><th>Pout kW</th><th>效率%</th><th>损耗 kW</th><th>损耗占比</th><th>校核</th></tr></thead><tbody></tbody></table>
+        <div class="pad small">损耗 P_loss = P_in − P_out，柱状长度按该点损耗相对最大损耗归一。</div>
+      </div>
+      <div class="card calc">
+        <h2><span class="dot"></span>加权效率明细</h2>
+        <table id="wtDetail"><thead><tr><th>负载%</th><th>权重 w</th><th>插值 η%</th><th>w·η</th></tr></thead><tbody></tbody></table>
+        <div class="pad small" id="wtFormula"></div>
+      </div>
+    </div>
+
+    <div id="panelTh" style="display:none">
+      <!-- 快照表模式展示 -->
+      <div id="thSnapOnly" style="display:none">
+        <div class="card calc">
+          <h2><span class="dot"></span>折算温度矩阵（测点 × 时间）</h2>
+          <div class="pad small" id="snapSummary"></div>
+          <div style="overflow-x:auto"><table id="snapMatrix"><thead></thead><tbody></tbody></table></div>
+          <div class="pad small">折算温度 = 原始温度 − 基准 + 目标；每格格式「折算℃ (原始℃)」，超限标红。无判据（限值 "/"）只显示不算 PASS/FAIL。</div>
+        </div>
+        <div class="card calc">
+          <h2><span class="dot"></span>折算温度曲线（多测点）</h2>
+          <div class="chart-wrap" id="snapChart"></div>
+          <div class="legend" id="snapLegend"></div>
+        </div>
+      </div>
+      <!-- 时间序列模式展示 -->
+      <div id="thSeriesOnly">
+        <div class="card calc">
+          <h2><span class="dot"></span>温升曲线（多测点 温度 — 时间）</h2>
+          <div class="chart-wrap" id="thChart"></div>
+          <div class="legend" id="thLegend"></div>
+        </div>
+        <div class="card calc">
+          <h2><span class="dot"></span>热稳态 / 温升 / 热阻反推</h2>
+          <table id="thTable2"><thead><tr><th>测点</th><th>稳态</th><th>窗口min</th><th>T_ss °C</th><th>ΔT K</th><th>P_loss W</th><th>Rth K/W</th><th>寿命 年</th><th>校核</th></tr></thead><tbody></tbody></table>
+          <div class="pad small">稳态判据：最近窗口内相邻点 |dT/dt| &lt; 阈值；Rth = (T_ss − Ta) / P_loss,ss。寿命按 Coffin-Manson 由温升估算。</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelChk" style="display:none">
+      <div class="card ok">
+        <h2><span class="dot"></span>综合校核结论</h2>
+        <div id="chkSummary" style="font-size:15px;margin-bottom:10px"></div>
+        <table id="chkTable"><thead><tr><th>类别</th><th>项目</th><th>实测值</th><th>限值</th><th>结论</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card ok">
+        <h2><span class="dot"></span>一键复制报告文本</h2>
+        <div class="rowbtns"><button class="mini-btn" onclick="copyReport()">复制测试报告摘要</button></div>
+        <div class="pad small" id="reportPreview" style="white-space:pre-wrap;font-family:Consolas,monospace;background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="foot">纯静态网页 · 所有计算在浏览器本地完成 · 结果可与 Python 内核逐项交叉验证</div>
+</div>
+
+<script>
+// ==================== 状态数据 ====================
+var STATE={
+  points:[
+    {load:10,pin:105,pout:100,u:0,i:0,pf:1,mode:'3ph'},
+    {load:20,pin:204,pout:200,u:0,i:0,pf:1,mode:'3ph'},
+    {load:50,pin:505,pout:500,u:0,i:0,pf:1,mode:'3ph'},
+    {load:100,pin:1015,pout:1000,u:0,i:0,pf:1,mode:'3ph'}
+  ],
+  weights:DEFAULT_WEIGHTS.map(function(w){return {load:w.load,w:w.w};}),
+  sensors:[{name:'IGBT壳温',series:makeSeries()}],
+  curSensor:0,
+  thMode:'snap',            // 'series' 时间序列 / 'snap' 快照表（默认快照，贴合用户实测表）
+  snapshots:makeDemoSnaps(),
+  curSnap:0,
+  view:'eff',
+  R:null,
+  SR:null                   // 快照模式求解结果
+};
+
+// 示例快照数据（取自用户真实测温表 20/40/60min 的前几个测点）
+function makeDemoSnaps(){
+  var mk=function(t,rows){return {time_min:t,rows:rows,rawText:rows.map(function(r){
+    return (r.channel+'[℃]\t'+r.name+'\t'+(r.temp==null?'/':r.temp)+'\t'+(r.limit==null?'/':r.limit));
+  }).join('\n')};};
+  return [
+    mk(20,[
+      {channel:'CH1-1-1',name:'PCS进水口',temp:30.25,limit:null},
+      {channel:'CH1-1-7',name:'交流电容C6',temp:37.9,limit:95},
+      {channel:'CH1-1-8',name:'IGBT-A1',temp:null,limit:120},
+      {channel:'CH1-2-1',name:'交流继电器铜皮',temp:60.0,limit:85},
+      {channel:'CH1-2-2',name:'交流继电器铜皮B',temp:65.0,limit:85}
+    ]),
+    mk(40,[
+      {channel:'CH1-1-1',name:'PCS进水口',temp:31.0,limit:null},
+      {channel:'CH1-1-7',name:'交流电容C6',temp:44.05,limit:95},
+      {channel:'CH1-1-8',name:'IGBT-A1',temp:70.0,limit:120},
+      {channel:'CH1-2-1',name:'交流继电器铜皮',temp:68.0,limit:85}
+    ]),
+    mk(60,[
+      {channel:'CH1-1-1',name:'PCS进水口',temp:32.0,limit:null},
+      {channel:'CH1-1-7',name:'交流电容C6',temp:45.75,limit:95},
+      {channel:'CH1-1-8',name:'IGBT-A1',temp:72.0,limit:120},
+      {channel:'CH1-2-1',name:'交流继电器铜皮',temp:90.0,limit:85}
+    ])
+  ];
+}
+
+function makeSeries(){
+  var s=[];
+  [0,5,10,20,30,40,50,60,70,80,90,100].forEach(function(t){
+    // 保留 2 位小数，避免输入框里出现一长串浮点尾数
+    s.push({t:t,temp:Math.round((25+55*(1-Math.exp(-t/20)))*100)/100,loss:140});
+  });
+  return s;
+}
+function num(v){var x=parseFloat(v);return isNaN(x)?0:x;}
+function fmt(v,d){if(d===undefined)d=2;return (Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toFixed(d);}
+function chk(b){return '<span class="chkbox '+(b?'PASS':'FAIL')+'">'+(b?'PASS':'FAIL')+'</span>';}
+
+// ==================== 读取界面参数 ====================
+function readData(){
+  return {
+    ta:num(document.getElementById('ta').value),
+    eta_min:num(document.getElementById('eta_min').value),
+    etaw_min:num(document.getElementById('etaw_min').value),
+    dt_max:num(document.getElementById('dt_max').value),
+    rth_design:num(document.getElementById('rth_design').value),
+    rth_tol:num(document.getElementById('rth_tol').value),
+    delta:num(document.getElementById('delta').value),
+    window:num(document.getElementById('window').value),
+    points:STATE.points.map(function(p){return {load:p.load,pin:p.pin,pout:p.pout,u:p.u,i:p.i,pf:p.pf,mode:p.mode};}),
+    weights:STATE.weights.map(function(w){return {load:w.load,w:w.w};}),
+    thermals:STATE.sensors.map(function(s){return {name:s.name,series:s.series.map(function(x){return {t:x.t,temp:x.temp,loss:x.loss};})};})
+  };
+}
+
+// ==================== 表格渲染 ====================
+function renderPointTable(){
+  var h='';
+  STATE.points.forEach(function(p,i){
+    h+='<tr>'+
+      '<td><input type="number" value="'+p.load+'" step="1" oninput="editPoint('+i+',\'load\',this.value)"></td>'+
+      '<td><input type="number" value="'+p.pin+'" step="1" oninput="editPoint('+i+',\'pin\',this.value)"></td>'+
+      '<td><input type="number" value="'+p.pout+'" step="1" oninput="editPoint('+i+',\'pout\',this.value)"></td>'+
+      '<td><input type="number" value="'+p.u+'" step="1" oninput="editPoint('+i+',\'u\',this.value)"></td>'+
+      '<td><input type="number" value="'+p.i+'" step="1" oninput="editPoint('+i+',\'i\',this.value)"></td>'+
+      '<td><input type="number" value="'+p.pf+'" step="0.01" oninput="editPoint('+i+',\'pf\',this.value)"></td>'+
+      '<td><select onchange="editPoint('+i+',\'mode\',this.value)"><option value="3ph"'+(p.mode==='3ph'?' selected':'')+'>三相</option><option value="1ph"'+(p.mode==='1ph'?' selected':'')+'>单相</option></select></td>'+
+      '<td><button class="mini-btn danger" onclick="delPoint('+i+')">×</button></td></tr>';
+  });
+  document.querySelector('#ptTable tbody').innerHTML=h;
+}
+function editPoint(i,k,v){STATE.points[i][k]=(k==='mode')?v:num(v);recalc();}
+function addPoint(){STATE.points.push({load:0,pin:0,pout:0,u:0,i:0,pf:1,mode:'3ph'});renderPointTable();recalc();}
+function delPoint(i){STATE.points.splice(i,1);renderPointTable();recalc();}
+function pastePoints(){
+  var txt=document.getElementById('ptPaste').value.trim();
+  if(!txt)return;
+  var out=[];
+  txt.split(/\r?\n/).forEach(function(line){
+    var c=line.split(/[\t,，\s]+/).filter(function(x){return x!=='';});
+    if(c.length>=3){
+      out.push({load:num(c[0]),pin:num(c[1]),pout:num(c[2]),u:0,i:0,pf:1,mode:'3ph'});
+    }
+  });
+  if(out.length){STATE.points=out;renderPointTable();recalc();}
+}
+function clearPaste(id){document.getElementById(id).value='';}
+
+function renderWeightTable(){
+  var h='';
+  STATE.weights.forEach(function(w,i){
+    h+='<tr><td><input type="number" value="'+w.load+'" step="1" oninput="editWeight('+i+',\'load\',this.value)"></td>'+
+       '<td><input type="number" value="'+w.w+'" step="0.01" oninput="editWeight('+i+',\'w\',this.value)"></td>'+
+       '<td><button class="mini-btn danger" onclick="delWeight('+i+')">×</button></td></tr>';
+  });
+  document.querySelector('#wtTable tbody').innerHTML=h;
+}
+function editWeight(i,k,v){STATE.weights[i][k]=num(v);recalc();}
+function addWeight(){STATE.weights.push({load:50,w:0});renderWeightTable();recalc();}
+function delWeight(i){STATE.weights.splice(i,1);renderWeightTable();recalc();}
+function resetWeights(){STATE.weights=DEFAULT_WEIGHTS.map(function(w){return {load:w.load,w:w.w};});renderWeightTable();recalc();}
+
+function renderSensorTabs(){
+  var h='';
+  STATE.sensors.forEach(function(s,i){
+    h+='<div class="tab'+(i===STATE.curSensor?' on':'')+'" onclick="switchSensor('+i+')">'+s.name+'</div>';
+  });
+  document.getElementById('sensorTabs').innerHTML=h;
+  document.getElementById('sensorName').value=STATE.sensors[STATE.curSensor]?STATE.sensors[STATE.curSensor].name:'';
+}
+function switchSensor(i){STATE.curSensor=i;renderSensorTabs();renderThermalTable();}
+function onSensorName(){STATE.sensors[STATE.curSensor].name=document.getElementById('sensorName').value;renderSensorTabs();}
+function addSensor(){STATE.sensors.push({name:'测点'+(STATE.sensors.length+1),series:makeSeries()});STATE.curSensor=STATE.sensors.length-1;renderSensorTabs();renderThermalTable();recalc();}
+function delSensor(){if(STATE.sensors.length<=1)return;STATE.sensors.splice(STATE.curSensor,1);STATE.curSensor=0;renderSensorTabs();renderThermalTable();recalc();}
+
+function renderThermalTable(){
+  var s=STATE.sensors[STATE.curSensor],h='';
+  if(!s)return;
+  s.series.forEach(function(x,i){
+    h+='<tr><td><input type="number" value="'+x.t+'" step="1" oninput="editThermal('+i+',\'t\',this.value)"></td>'+
+       '<td><input type="number" value="'+x.temp+'" step="0.1" oninput="editThermal('+i+',\'temp\',this.value)"></td>'+
+       '<td><input type="number" value="'+x.loss+'" step="1" oninput="editThermal('+i+',\'loss\',this.value)"></td>'+
+       '<td><button class="mini-btn danger" onclick="delThermal('+i+')">×</button></td></tr>';
+  });
+  document.querySelector('#thTable tbody').innerHTML=h;
+}
+function editThermal(i,k,v){STATE.sensors[STATE.curSensor].series[i][k]=num(v);recalc();}
+function addThermal(){STATE.sensors[STATE.curSensor].series.push({t:0,temp:25,loss:140});renderThermalTable();recalc();}
+function delThermal(i){STATE.sensors[STATE.curSensor].series.splice(i,1);renderThermalTable();recalc();}
+function pasteThermal(){
+  var txt=document.getElementById('thPaste').value.trim();
+  if(!txt)return;
+  var out=[];
+  txt.split(/\r?\n/).forEach(function(line){
+    var c=line.split(/[\t,，\s]+/).filter(function(x){return x!=='';});
+    if(c.length>=2) out.push({t:num(c[0]),temp:num(c[1]),loss:c.length>=3?num(c[2]):140});
+  });
+  if(out.length){STATE.sensors[STATE.curSensor].series=out;renderThermalTable();recalc();}
+}
+
+// ==================== 重算 + 渲染 ====================
+// 读取快照模式参数
+function readSnapData(){
+  return {
+    baseline:num(document.getElementById('snapBase').value),
+    target:num(document.getElementById('snapTarget').value),
+    loss_w:num(document.getElementById('snapLoss').value),
+    rth_design:num(document.getElementById('rth_design').value),
+    rth_tol:num(document.getElementById('rth_tol').value),
+    snapshots:STATE.snapshots.map(function(s){
+      return {time_min:s.time_min,rows:s.rows.map(function(r){
+        return {channel:r.channel,name:r.name,temp:r.temp,limit:r.limit};
+      })};
+    })
+  };
+}
+
+function recalc(){
+  var r=solve(readData());
+  STATE.R=r;
+  // 效率部分始终算
+  renderLossTable(r);
+  renderWeightDetail(r);
+  renderEffChart(r);
+  if(STATE.thMode==='snap'){
+    var sr=solve_snapshot(readSnapData());
+    STATE.SR=sr;
+    renderKPIsnap(sr,r);
+    renderSnapMatrix(sr);
+    renderSnapChart(sr);
+    renderChkSnap(sr,r);
+  }else{
+    renderKPI(r);
+    renderThChart(r);
+    renderThTable2(r);
+    renderChk(r);
+  }
+}
+
+// ==================== 温升模式切换 ====================
+function switchThMode(m){
+  STATE.thMode=m;
+  [].forEach.call(document.querySelectorAll('#thModeTabs .tab'),function(t){
+    t.classList.toggle('on',t.getAttribute('data-m')===m);
+  });
+  document.getElementById('thModeSeries').style.display=(m==='series')?'':'none';
+  document.getElementById('thModeSnap').style.display=(m==='snap')?'':'none';
+  document.getElementById('thSeriesOnly').style.display=(m==='series')?'':'none';
+  document.getElementById('thSnapOnly').style.display=(m==='snap')?'':'none';
+  recalc();
+}
+
+// ==================== 快照表交互 ====================
+function renderSnapTabs(){
+  var h='';
+  STATE.snapshots.forEach(function(s,i){
+    h+='<div class="tab'+(i===STATE.curSnap?' on':'')+'" onclick="switchSnap('+i+')">'+fmt(s.time_min,0)+'min</div>';
+  });
+  document.getElementById('snapTabs').innerHTML=h;
+  var cur=STATE.snapshots[STATE.curSnap];
+  if(cur){
+    document.getElementById('snapTime').value=cur.time_min;
+    document.getElementById('snapPaste').value=cur.rawText||'';
+  }
+  document.getElementById('snapCount').innerHTML='当前 '+STATE.snapshots.length+' 个时间点，共 '+
+    STATE.snapshots.reduce(function(a,s){return a+s.rows.length;},0)+' 行测点记录';
+}
+function switchSnap(i){saveSnapText();STATE.curSnap=i;renderSnapTabs();recalc();}
+function onSnapTime(){STATE.snapshots[STATE.curSnap].time_min=num(document.getElementById('snapTime').value);renderSnapTabs();recalc();}
+function addSnap(){
+  saveSnapText();
+  var t=STATE.snapshots.length?Math.max.apply(null,STATE.snapshots.map(function(s){return s.time_min;}))+20:20;
+  STATE.snapshots.push({time_min:t,rows:[],rawText:''});
+  STATE.curSnap=STATE.snapshots.length-1;renderSnapTabs();recalc();
+}
+function delSnap(){
+  if(STATE.snapshots.length<=1)return;
+  STATE.snapshots.splice(STATE.curSnap,1);STATE.curSnap=0;renderSnapTabs();recalc();
+}
+function saveSnapText(){
+  var cur=STATE.snapshots[STATE.curSnap];
+  if(cur)cur.rawText=document.getElementById('snapPaste').value;
+}
+function pasteSnap(){
+  var txt=document.getElementById('snapPaste').value.trim();
+  var rows=[];
+  txt.split(/\r?\n/).forEach(function(line){
+    var c=line.split(/\t|,|，|\s{2,}/).map(function(x){return x.trim();});
+    // 兼容：通道 名称 温度 限值；通道名内嵌 [℃] 要去尾
+    if(c.length>=2&&c[0]){
+      var ch=c[0].replace(/\[[^\]]*\]$/,'').trim();
+      var t=c.length>=3?c[2]:'';
+      var lim=c.length>=4?c[3]:'';
+      rows.push({channel:ch,name:c[1]||'',temp:t,limit:lim});
+    }
+  });
+  STATE.snapshots[STATE.curSnap].rows=rows;
+  renderSnapTabs();recalc();
+}
+function autoBase(){
+  // 从当前页找 CH1-1-1 的原始温度做基准
+  var cur=STATE.snapshots[STATE.curSnap];
+  var hit=null;
+  cur.rows.forEach(function(r){if(r.channel==='CH1-1-1'&&r.temp!=='/'&&r.temp!==''){hit=r;}});
+  if(hit){document.getElementById('snapBase').value=hit.temp;recalc();}
+  else alert('当前页未找到 CH1-1-1（PCS进水口）的有效原始温度');
+}
+
+// ==================== 快照模式渲染 ====================
+function renderKPIsnap(sr,r){
+  var fail=sr.n_fail,judge=sr.n_judge;
+  var clsA=sr.all_ok?'good':'bad';
+  var clsE=r.points.length&&r.points.every(function(p){return p.ok_eta;})?'good':'bad';
+  var clsW=r.ok_etaw?'good':'bad';
+  document.getElementById('kpis').innerHTML=
+    '<div class="kpi '+clsW+'"><div class="k-lbl">加权效率 ηw</div><div class="k-val">'+fmt(r.eta_w,3)+'<em>%</em></div><div class="k-sub">下限 '+fmt(r.etaw_min,1)+'%</div></div>'+
+    '<div class="kpi '+clsE+'"><div class="k-lbl">最低点效率</div><div class="k-val">'+(r.points.length?fmt(Math.min.apply(null,r.points.map(function(p){return p.eta;})),3):'—')+'<em>%</em></div><div class="k-sub">'+r.points.length+' 个负载点</div></div>'+
+    '<div class="kpi '+clsA+'"><div class="k-lbl">测点校核 FAIL</div><div class="k-val">'+fail+'<em>/ '+judge+'</em></div><div class="k-sub">'+sr.n_points+' 测点 · '+sr.times.length+' 时间点</div></div>'+
+    '<div class="kpi '+clsA+'"><div class="k-lbl">综合校核</div><div class="k-val" style="font-size:22px">'+(sr.all_ok?'PASS':'FAIL')+'</div><div class="k-sub">基准 '+fmt(sr.baseline,2)+' → 目标 '+fmt(sr.target,0)+'℃</div></div>';
+}
+
+function renderSnapMatrix(sr){
+  var times=sr.times;
+  document.getElementById('snapSummary').innerHTML='基准进水口温度 <b>'+fmt(sr.baseline,2)+'℃</b>，折算目标 <b>'+fmt(sr.target,0)+'℃</b>，'+
+    '共 <b>'+sr.n_points+'</b> 个测点、<b>'+sr.n_judge+'</b> 个有判据，超限 <b style="color:'+(sr.n_fail?'#dc2626':'#059669')+'">'+sr.n_fail+'</b> 个。';
+  var h='<thead><tr><th>通道</th><th>测点名称</th>';
+  times.forEach(function(t){h+='<th>'+fmt(t,0)+'min</th>';});
+  h+='<th>最高折算℃</th><th>斜率℃/min</th><th>校核</th></tr></thead><tbody>';
+  sr.matrix.forEach(function(m){
+    h+='<tr><td class="res" style="font-size:11px">'+m.channel+'</td><td style="text-align:left">'+m.name+'</td>';
+    for(var i=0;i<times.length;i++){
+      var tc=m.conv[i],raw=m.raw[i],lim=m.limit[i];
+      if(tc===null){h+='<td class="res" style="color:#94a3b8">—</td>';}
+      else{
+        var over=(lim!==null&&tc>lim);
+        var cell=fmt(tc,2)+' <span style="color:#94a3b8;font-size:10px">('+(raw===null?'—':fmt(raw,2))+')</span>';
+        h+='<td class="res"'+(over?' style="background:#fee2e2;color:#dc2626;font-weight:600"':'')+'>'+cell+'</td>';
+      }
+    }
+    h+='<td class="res">'+(m.t_max===null?'—':fmt(m.t_max,2))+'</td>';
+    h+='<td class="res">'+(m.slope===null?'—':fmt(m.slope,3))+'</td>';
+    h+='<td>'+(m.ok===null?'<span class="chkbox" style="background:#eef2f7;color:#64748b">无判据</span>':chk(m.ok))+'</td></tr>';
+  });
+  h+='</tbody>';
+  document.getElementById('snapMatrix').innerHTML=h;
+}
+
+function renderSnapChart(sr){
+  var W=560,H=300,L=52,R=16,T=18,B=40;
+  var times=sr.times;
+  var allConv=[];
+  sr.matrix.forEach(function(m){m.conv.forEach(function(v){if(v!==null)allConv.push(v);});});
+  var vlo=allConv.length?Math.min.apply(null,allConv)-2:40;
+  var vhi=allConv.length?Math.max.apply(null,allConv)+2:120;
+  function X(t){var lo=times[0],hi=times[times.length-1];if(hi===lo)hi=lo+1;return L+(t-lo)/(hi-lo)*(W-L-R);}
+  function Y(v){return T+(vhi-v)/(vhi-vlo)*(H-T-B);}
+  var s='<svg class="chart" viewBox="0 0 '+W+' '+H+'">';
+  for(var g=0;g<=4;g++){
+    var yy=vlo+(vhi-vlo)*g/4;
+    s+='<line x1="'+L+'" y1="'+Y(yy)+'" x2="'+(W-R)+'" y2="'+Y(yy)+'" stroke="#e8eef5"/>';
+    s+='<text x="'+(L-6)+'" y="'+(Y(yy)+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+fmt(yy,0)+'</text>';
+  }
+  // 限值参考线：取所有测点限值的最小值做示意
+  var limits=[];sr.matrix.forEach(function(m){m.limit.forEach(function(l){if(l!==null)limits.push(l);});});
+  if(limits.length){
+    var limMin=Math.min.apply(null,limits);
+    if(limMin>=vlo&&limMin<=vhi){
+      s+='<line x1="'+L+'" y1="'+Y(limMin)+'" x2="'+(W-R)+'" y2="'+Y(limMin)+'" stroke="#dc2626" stroke-dasharray="5,4" stroke-width="1.5"/>';
+      s+='<text x="'+(W-R)+'" y="'+(Y(limMin)-5)+'" text-anchor="end" font-size="10" fill="#dc2626">最低限值 '+fmt(limMin,0)+'</text>';
+    }
+  }
+  var colors=['#2563eb','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#db2777','#65a30d'];
+  var showN=Math.min(sr.matrix.length,8);
+  for(var k=0;k<showN;k++){
+    var m=sr.matrix[k],c=colors[k%colors.length];
+    var seg=[],pts=[];
+    for(var i=0;i<times.length;i++){
+      if(m.conv[i]!==null){pts.push([X(times[i]),Y(m.conv[i])]);}
+    }
+    if(pts.length){
+      var path=pts.map(function(p,i){return (i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ');
+      s+='<path d="'+path+'" fill="none" stroke="'+c+'" stroke-width="2"/>';
+      pts.forEach(function(p){s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3" fill="'+c+'"/>';});
+    }
+  }
+  times.forEach(function(t){s+='<text x="'+X(t)+'" y="'+(H-14)+'" text-anchor="middle" font-size="10" fill="#64748b">'+fmt(t,0)+'</text>';});
+  s+='<text x="'+(W/2)+'" y="'+(H-2)+'" text-anchor="middle" font-size="10" fill="#64748b">时间 min</text>';
+  s+='<text x="8" y="'+(T+8)+'" font-size="10" fill="#64748b">折算℃</text>';
+  s+='</svg>';
+  document.getElementById('snapChart').innerHTML=s;
+  document.getElementById('snapLegend').innerHTML=sr.matrix.slice(0,8).map(function(m,i){
+    return '<span><i style="background:'+colors[i%colors.length]+'"></i>'+m.name+'</span>';
+  }).join('')+'<span style="color:#dc2626">--- 最低限值</span>'+(sr.matrix.length>8?'<span>…另 '+(sr.matrix.length-8)+' 测点见矩阵表</span>':'');
+}
+
+function buildSnapReport(sr,r){
+  var L=[];
+  L.push('PCS 热测试数据分析报告（快照模式）');
+  L.push('基准 '+fmt(sr.baseline,2)+'℃ → 折算目标 '+fmt(sr.target,0)+'℃；时间点 '+sr.times.map(function(t){return fmt(t,0);}).join('/')+'min');
+  L.push('');
+  L.push('【测点校核】共 '+sr.n_points+' 测点，有判据 '+sr.n_judge+'，超限 '+sr.n_fail);
+  sr.matrix.forEach(function(m){
+    if(m.ok!==null){
+      L.push('  '+m.channel+' '+m.name+': 最高折算 '+fmt(m.t_max,2)+'℃ '+(m.ok?'PASS':'FAIL'));
+    }
+  });
+  L.push('');
+  L.push('【加权效率】'+fmt(r.eta_w,3)+'% (下限 '+fmt(r.etaw_min,1)+'%) '+(r.ok_etaw?'PASS':'FAIL'));
+  L.push('');
+  L.push('综合结论: '+(sr.all_ok&&r.ok_etaw?'PASS':'FAIL'));
+  return L.join('\n');
+}
+
+function renderChkSnap(sr,r){
+  var h='';
+  sr.matrix.forEach(function(m){
+    if(m.ok===null)return;
+    var worst=null;
+    m.checks.forEach(function(c){if(worst===null||c.margin<worst.margin)worst=c;});
+    if(worst){
+      h+='<tr><td>温度</td><td>'+m.channel+' '+m.name+' @'+fmt(worst.time,0)+'min</td><td class="res">'+fmt(worst.t_conv,2)+'℃</td>'+
+         '<td class="res">≤ '+fmt(worst.limit,2)+'℃</td><td>'+chk(worst.ok)+'</td></tr>';
+    }
+  });
+  h+='<tr><td>效率</td><td>加权效率 ηw</td><td class="res">'+fmt(r.eta_w,3)+'%</td><td class="res">≥ '+fmt(r.etaw_min,1)+'%</td><td>'+chk(r.ok_etaw)+'</td></tr>';
+  document.querySelector('#chkTable tbody').innerHTML=h;
+  var ok=sr.all_ok&&r.ok_etaw;
+  document.getElementById('chkSummary').innerHTML='综合结论：<b style="color:'+(ok?'#059669':'#dc2626')+'">'+(ok?'PASS — 全部指标合格':'FAIL — 存在超限项')+'</b>　（'+sr.n_points+' 测点 · '+sr.times.length+' 时间点，'+sr.n_fail+' 项温度超限）';
+  document.getElementById('reportPreview').textContent=buildSnapReport(sr,r);
+}
+
+function renderKPI(r){
+  var maxT=0;
+  r.thermals.forEach(function(t){maxT=Math.max(maxT,t.dt);});
+  var clsE=r.points.length&&r.points.every(function(p){return p.ok_eta;})?'good':'bad';
+  var clsW=r.ok_etaw?'good':'bad';
+  var clsT=maxT<=r.dt_max?'good':'bad';
+  var clsA=r.all_ok?'good':'bad';
+  document.getElementById('kpis').innerHTML=
+    '<div class="kpi '+clsW+'"><div class="k-lbl">加权效率 ηw</div><div class="k-val">'+fmt(r.eta_w,3)+'<em>%</em></div><div class="k-sub">下限 '+fmt(r.etaw_min,1)+'%</div></div>'+
+    '<div class="kpi '+clsE+'"><div class="k-lbl">最低点效率</div><div class="k-val">'+(r.points.length?fmt(Math.min.apply(null,r.points.map(function(p){return p.eta;})),3):'—')+'<em>%</em></div><div class="k-sub">'+r.points.length+' 个负载点</div></div>'+
+    '<div class="kpi '+clsT+'"><div class="k-lbl">最大稳态温升</div><div class="k-val">'+fmt(maxT,1)+'<em>K</em></div><div class="k-sub">上限 '+fmt(r.dt_max,0)+' K</div></div>'+
+    '<div class="kpi '+clsA+'"><div class="k-lbl">综合校核</div><div class="k-val" style="font-size:22px">'+(r.all_ok?'PASS':'FAIL')+'</div><div class="k-sub">'+r.thermals.length+' 测点 · Ta '+fmt(r.ta,0)+'°C</div></div>';
+}
+
+function renderLossTable(r){
+  var maxLoss=Math.max.apply(null,r.points.map(function(p){return p.loss;}).concat([1]));
+  var h='';
+  r.points.forEach(function(p){
+    var ratio=p.pin>0?p.loss/p.pin*100:0;
+    var w=Math.max(2,p.loss/maxLoss*100);
+    h+='<tr><td>'+fmt(p.load,0)+'</td><td class="res">'+fmt(p.pin/1000,3)+'</td><td class="res">'+fmt(p.pout/1000,3)+'</td>'+
+       '<td class="res">'+fmt(p.eta,3)+'</td><td class="res">'+fmt(p.loss/1000,3)+'</td>'+
+       '<td><span class="bar" style="width:'+w+'%;background:#3b82f6"></span> <span class="res">'+fmt(ratio,2)+'%</span></td>'+
+       '<td>'+chk(p.ok_eta)+'</td></tr>';
+  });
+  document.querySelector('#lossTable tbody').innerHTML=h;
+}
+
+function renderWeightDetail(r){
+  var h='',sumwe=0;
+  r.wdetail.forEach(function(d){
+    sumwe+=d.w*d.eta;
+    h+='<tr><td>'+fmt(d.load,0)+'</td><td class="res">'+fmt(d.w,2)+'</td><td class="res">'+fmt(d.eta,3)+'</td><td class="res">'+fmt(d.w*d.eta,3)+'</td></tr>';
+  });
+  document.querySelector('#wtDetail tbody').innerHTML=h;
+  var sw=r.wdetail.reduce(function(a,d){return a+d.w;},0);
+  document.getElementById('wtFormula').innerHTML='ηw = Σ(w·η) / Σw = '+fmt(sumwe,3)+' / '+fmt(sw,2)+' = <b>'+fmt(r.eta_w,3)+'%</b>　（下限 '+fmt(r.etaw_min,1)+'%，'+chk(r.ok_etaw)+'）';
+}
+
+// 效率曲线 SVG
+function renderEffChart(r){
+  var W=560,H=280,L=52,R=16,T=18,B=40;
+  var pts=r.points.slice().sort(function(a,b){return a.load-b.load;});
+  var lo=pts.length?Math.min.apply(null,pts.map(function(p){return p.load;})):0;
+  var hi=pts.length?Math.max.apply(null,pts.map(function(p){return p.load;})):100;
+  if(hi===lo)hi=lo+1;
+  var ylo=Math.min(90,r.eta_min-1),yhi=100;
+  function X(v){return L+(v-lo)/(hi-lo)*(W-L-R);}
+  function Y(v){return T+(yhi-v)/(yhi-ylo)*(H-T-B);}
+  var s='<svg class="chart" viewBox="0 0 '+W+' '+H+'">';
+  // 网格
+  for(var g=0;g<=4;g++){
+    var yy=ylo+(yhi-ylo)*g/4;
+    s+='<line x1="'+L+'" y1="'+Y(yy)+'" x2="'+(W-R)+'" y2="'+Y(yy)+'" stroke="#e8eef5"/>';
+    s+='<text x="'+(L-6)+'" y="'+(Y(yy)+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+fmt(yy,0)+'</text>';
+  }
+  // 效率下限线
+  s+='<line x1="'+L+'" y1="'+Y(r.eta_min)+'" x2="'+(W-R)+'" y2="'+Y(r.eta_min)+'" stroke="#d97706" stroke-dasharray="5,4" stroke-width="1.5"/>';
+  s+='<text x="'+(W-R)+'" y="'+(Y(r.eta_min)-5)+'" text-anchor="end" font-size="10" fill="#d97706">下限 '+fmt(r.eta_min,0)+'%</text>';
+  if(pts.length){
+    // 折线
+    var path=pts.map(function(p,i){return (i?'L':'M')+X(p.load)+','+Y(p.eta);}).join(' ');
+    s+='<path d="'+path+'" fill="none" stroke="#2563eb" stroke-width="2.5"/>';
+    // 点 + 标注
+    pts.forEach(function(p){
+      s+='<circle cx="'+X(p.load)+'" cy="'+Y(p.eta)+'" r="4.5" fill="'+(p.ok_eta?'#2563eb':'#dc2626')+'" stroke="#fff" stroke-width="1.5"/>';
+      s+='<text x="'+X(p.load)+'" y="'+(Y(p.eta)-10)+'" text-anchor="middle" font-size="10" fill="#0f172a">'+fmt(p.eta,2)+'</text>';
+      s+='<text x="'+X(p.load)+'" y="'+(H-14)+'" text-anchor="middle" font-size="10" fill="#64748b">'+fmt(p.load,0)+'%</text>';
+    });
+    // 最优点
+    var best=pts.reduce(function(a,b){return b.eta>a.eta?b:a;},pts[0]);
+    s+='<circle cx="'+X(best.load)+'" cy="'+Y(best.eta)+'" r="9" fill="none" stroke="#059669" stroke-width="2"/>';
+  }
+  s+='<text x="'+(W/2)+'" y="'+(H-2)+'" text-anchor="middle" font-size="10" fill="#64748b">负载率</text>';
+  s+='<text x="10" y="'+(T+8)+'" font-size="10" fill="#64748b">η%</text>';
+  s+='</svg>';
+  document.getElementById('effChart').innerHTML=s;
+}
+
+// 温升曲线 SVG（多测点）
+function renderThChart(r){
+  var W=560,H=280,L=48,R=16,T=18,B=40;
+  var all=[];
+  STATE.sensors.forEach(function(s){s.series.forEach(function(x){all.push(x);});});
+  var tmax=all.length?Math.max.apply(null,all.map(function(x){return x.t;})):100;
+  var tmin=all.length?Math.min.apply(null,all.map(function(x){return x.t;})):0;
+  var temps=all.map(function(x){return x.temp;});
+  var vlo=temps.length?Math.min.apply(null,temps)-2:20;
+  var vhi=temps.length?Math.max.apply(null,temps)+2:90;
+  if(tmax===tmin)tmax=tmin+1;
+  function X(v){return L+(v-tmin)/(tmax-tmin)*(W-L-R);}
+  function Y(v){return T+(vhi-v)/(vhi-vlo)*(H-T-B);}
+  var s='<svg class="chart" viewBox="0 0 '+W+' '+H+'">';
+  for(var g=0;g<=4;g++){
+    var yy=vlo+(vhi-vlo)*g/4;
+    s+='<line x1="'+L+'" y1="'+Y(yy)+'" x2="'+(W-R)+'" y2="'+Y(yy)+'" stroke="#e8eef5"/>';
+    s+='<text x="'+(L-6)+'" y="'+(Y(yy)+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+fmt(yy,0)+'</text>';
+  }
+  var colors=['#2563eb','#dc2626','#059669','#d97706','#7c3aed','#0891b2'];
+  STATE.sensors.forEach(function(sen,si){
+    var ss=sen.series.slice().sort(function(a,b){return a.t-b.t;});
+    if(!ss.length)return;
+    var c=colors[si%colors.length];
+    var path=ss.map(function(x,i){return (i?'L':'M')+X(x.t)+','+Y(x.temp);}).join(' ');
+    s+='<path d="'+path+'" fill="none" stroke="'+c+'" stroke-width="2.2"/>';
+    ss.forEach(function(x){s+='<circle cx="'+X(x.t)+'" cy="'+Y(x.temp)+'" r="3" fill="'+c+'"/>';});
+    // 稳态区阴影
+    var tr=r.thermals[si];
+    if(tr&&tr.ss){
+      var winStart=tmax-r.window;
+      if(winStart<tmin)winStart=tmin;
+      s+='<rect x="'+X(winStart)+'" y="'+T+'" width="'+(X(tmax)-X(winStart))+'" height="'+(H-T-B)+'" fill="'+c+'" fill-opacity="0.06"/>';
+    }
+  });
+  for(var gx=0;gx<=5;gx++){
+    var xx=tmin+(tmax-tmin)*gx/5;
+    s+='<text x="'+X(xx)+'" y="'+(H-14)+'" text-anchor="middle" font-size="10" fill="#64748b">'+fmt(xx,0)+'</text>';
+  }
+  s+='<text x="'+(W/2)+'" y="'+(H-2)+'" text-anchor="middle" font-size="10" fill="#64748b">时间 min</text>';
+  s+='<text x="8" y="'+(T+8)+'" font-size="10" fill="#64748b">°C</text>';
+  s+='</svg>';
+  document.getElementById('thChart').innerHTML=s;
+  var colors2=['#2563eb','#dc2626','#059669','#d97706','#7c3aed','#0891b2'];
+  document.getElementById('thLegend').innerHTML=STATE.sensors.map(function(sen,i){
+    return '<span><i style="background:'+colors2[i%6]+'"></i>'+sen.name+'</span>';
+  }).join('')+'<span><i style="background:#94a3b8;opacity:.3"></i>稳态窗口</span>';
+}
+
+function renderThTable2(r){
+  var h='';
+  r.thermals.forEach(function(t){
+    var ok=t.ok_dt&&t.ok_rth;
+    h+='<tr><td>'+t.name+'</td><td>'+(t.ss?'<span style="color:#059669">是</span>':'<span style="color:#dc2626">否</span>')+'</td>'+
+       '<td class="res">'+t.n_win+'</td><td class="res">'+fmt(t.temp_ss,2)+'</td><td class="res">'+fmt(t.dt,2)+'</td>'+
+       '<td class="res">'+fmt(t.ploss_ss,1)+'</td><td class="res">'+fmt(t.rth,4)+'</td><td class="res">'+fmt(t.life_yr,1)+'</td>'+
+       '<td>'+chk(ok)+'</td></tr>';
+  });
+  document.querySelector('#thTable2 tbody').innerHTML=h;
+}
+
+function renderChk(r){
+  var h='';
+  r.points.forEach(function(p){
+    h+='<tr><td>效率</td><td>'+fmt(p.load,0)+'% 负载点效率</td><td class="res">'+fmt(p.eta,3)+'%</td><td class="res">≥ '+fmt(r.eta_min,1)+'%</td><td>'+chk(p.ok_eta)+'</td></tr>';
+  });
+  h+='<tr><td>效率</td><td>加权效率 ηw</td><td class="res">'+fmt(r.eta_w,3)+'%</td><td class="res">≥ '+fmt(r.etaw_min,1)+'%</td><td>'+chk(r.ok_etaw)+'</td></tr>';
+  r.thermals.forEach(function(t){
+    h+='<tr><td>温升</td><td>'+t.name+' 稳态温升</td><td class="res">'+fmt(t.dt,2)+' K</td><td class="res">≤ '+fmt(r.dt_max,0)+' K</td><td>'+chk(t.ok_dt)+'</td></tr>';
+    h+='<tr><td>热阻</td><td>'+t.name+' 实测热阻</td><td class="res">'+fmt(t.rth,4)+' K/W</td><td class="res">≤ '+fmt(t.rth_hi,4)+' K/W</td><td>'+chk(t.ok_rth)+'</td></tr>';
+  });
+  document.querySelector('#chkTable tbody').innerHTML=h;
+  document.getElementById('chkSummary').innerHTML='综合结论：<b style="color:'+(r.all_ok?'#059669':'#dc2626')+'">'+(r.all_ok?'PASS — 全部指标合格':'FAIL — 存在不合格项')+'</b>　（'+r.points.length+' 负载点 · '+r.thermals.length+' 测点）';
+  document.getElementById('reportPreview').textContent=buildReport(r);
+}
+
+function buildReport(r){
+  var L=[];
+  L.push('PCS 效率与温升测试报告摘要');
+  L.push('环境温度 Ta = '+fmt(r.ta,1)+' °C');
+  L.push('');
+  L.push('【效率测试】');
+  r.points.forEach(function(p){L.push('  '+fmt(p.load,0)+'% 负载: η='+fmt(p.eta,3)+'%, 损耗='+fmt(p.loss/1000,3)+'kW '+(p.ok_eta?'PASS':'FAIL'));});
+  L.push('  加权效率 ηw = '+fmt(r.eta_w,3)+'% (下限 '+fmt(r.etaw_min,1)+'%) '+(r.ok_etaw?'PASS':'FAIL'));
+  L.push('');
+  L.push('【温升测试】');
+  r.thermals.forEach(function(t){
+    L.push('  '+t.name+': 稳态='+(t.ss?'是':'否')+', ΔT='+fmt(t.dt,2)+'K, Rth='+fmt(t.rth,4)+'K/W, 寿命≈'+fmt(t.life_yr,1)+'年 '+(t.ok_dt&&t.ok_rth?'PASS':'FAIL'));
+  });
+  L.push('');
+  L.push('综合结论: '+(r.all_ok?'PASS':'FAIL'));
+  return L.join('\n');
+}
+function copyReport(){
+  var txt=(STATE.thMode==='snap'&&STATE.SR)?buildSnapReport(STATE.SR,STATE.R):buildReport(STATE.R);
+  if(navigator.clipboard) navigator.clipboard.writeText(txt);
+  else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+}
+
+// ==================== 标签切换 ====================
+document.getElementById('viewTabs').addEventListener('click',function(e){
+  if(!e.target.classList.contains('tab'))return;
+  var v=e.target.getAttribute('data-v');
+  STATE.view=v;
+  [].forEach.call(this.querySelectorAll('.tab'),function(t){t.classList.toggle('on',t===e.target);});
+  document.getElementById('panelEff').style.display=v==='eff'?'':'none';
+  document.getElementById('panelTh').style.display=v==='th'?'':'none';
+  document.getElementById('panelChk').style.display=v==='chk'?'':'none';
+});
+
+// ==================== 初始化 ====================
+document.querySelectorAll('input[type=number]').forEach(function(el){el.addEventListener('input',recalc);});
+renderPointTable();
+renderWeightTable();
+renderSensorTabs();
+renderThermalTable();
+renderSnapTabs();
+// 默认快照模式：同步显示状态（与 STATE.thMode 一致）
+document.getElementById('thModeSeries').style.display='none';
+document.getElementById('thModeSnap').style.display='';
+document.getElementById('thSeriesOnly').style.display='none';
+document.getElementById('thSnapOnly').style.display='';
+recalc();
+</script>
+</body>
+</html>
