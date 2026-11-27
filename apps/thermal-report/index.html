@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PCS 热测试报告自动生成工具</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --txt:#0f172a; --sub:#64748b; --line:#d8e1ec;
+    --acc:#2563eb; --inp:#fffbeb; --calc:#f8fafc; --ok:#f0fdf4;
+    --pass:#059669; --fail:#dc2626; --warn:#d97706;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
+  .wrap{max-width:1600px;margin:0 auto;padding:20px 20px 60px}
+  header h1{margin:0 0 6px;font-size:24px;letter-spacing:.3px}
+  header .desc{color:var(--sub);font-size:13px;margin-bottom:14px}
+  header .desc b{color:var(--acc)}
+  .topbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 13px;
+    cursor:pointer;font-size:12px;color:var(--acc);font-weight:600}
+  .btn:hover{border-color:var(--acc);background:#eff6ff}
+  .btn.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .btn.pri:hover{background:#1d4ed8}
+  .btn.danger{color:var(--fail)}
+  .grid3{display:grid;grid-template-columns:minmax(320px,1fr) minmax(420px,1.15fr) minmax(260px,.82fr);
+    gap:16px;align-items:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:15px 16px;box-shadow:0 2px 10px rgba(15,23,42,.05);margin-bottom:14px}
+  .card.inp{background:var(--inp)}
+  .card.calc{background:var(--calc)}
+  .card.ok{background:var(--ok)}
+  .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--acc)}
+  .card.inp h2 .dot{background:#d97706}
+  .card.ok h2 .dot{background:var(--pass)}
+  .hint{font-size:11px;color:var(--sub);margin:-4px 0 10px;line-height:1.6}
+  label.fld{display:flex;align-items:center;gap:6px;margin:5px 0;font-size:12px}
+  label.fld span{width:74px;color:var(--sub);flex-shrink:0}
+  input[type=number],input[type=text],select,textarea{border:1px solid var(--line);border-radius:6px;
+    padding:5px 7px;font-size:12px;width:100%;background:#fff;color:var(--txt)}
+  textarea{resize:vertical;font-family:Consolas,monospace;font-size:11px;min-height:46px}
+  .subhd{font-size:12px;font-weight:600;color:var(--sub);margin:13px 0 5px;
+    padding-left:8px;border-left:3px solid var(--acc)}
+  table{border-collapse:collapse;width:100%;font-size:11px;margin-top:4px}
+  th,td{border:1px solid var(--line);padding:4px 5px;text-align:center}
+  th{background:#eef2f7;font-weight:600;color:var(--sub)}
+  td input,td select{border:1px solid #e2e8f0;border-radius:4px;padding:2px 4px;
+    width:100%;text-align:center;font-size:11px;background:#fff}
+  td.l{text-align:left}
+  .rowbtns{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+  .mini-btn{border:1px solid var(--line);background:#fff;border-radius:5px;
+    cursor:pointer;padding:3px 8px;font-size:11px;color:var(--acc)}
+  .mini-btn:hover{border-color:var(--acc)}
+  .mini-btn.danger{color:var(--fail)}
+  .itemtabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .itab{border:1px solid var(--line);background:#fff;border-radius:5px;padding:3px 8px;
+    cursor:pointer;font-size:11px;color:var(--sub)}
+  .itab.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .itab.FAIL{background:#fee2e2;color:var(--fail);border-color:#fecaca}
+  .itab.PASS{background:#d1fae5;color:var(--pass);border-color:#a7f3d0}
+  .itab.on.FAIL,.itab.on.PASS{background:#fff;color:var(--txt)}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 10px;min-width:0}
+  .kpi .k-lbl{font-size:10px;color:var(--sub);white-space:nowrap}
+  .kpi .k-val{font-size:20px;font-weight:700;font-family:Consolas,monospace;line-height:1.2;margin-top:2px}
+  .kpi.good .k-val{color:var(--pass)} .kpi.bad .k-val{color:var(--fail)} .kpi.warn .k-val{color:var(--warn)}
+  .chk{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700}
+  .chk.PASS{background:#d1fae5;color:var(--pass)}
+  .chk.FAIL{background:#fee2e2;color:var(--fail)}
+  .chk.NA{background:#e2e8f0;color:var(--sub)}
+  .failitem{border-left:3px solid var(--fail);background:#fff;border-radius:4px;
+    padding:5px 8px;margin:5px 0;font-size:11px}
+  .small{font-size:11px;color:var(--sub);line-height:1.7}
+  /* ===== A4 报告预览 ===== */
+  .paper{background:#fff;border:1px solid var(--line);box-shadow:0 3px 14px rgba(15,23,42,.08);
+    padding:26px 30px;margin:0 auto 16px;max-width:720px;min-height:300px}
+  .paper .ptitle{text-align:center;font-size:17px;font-weight:700;letter-spacing:1px;margin:6px 0 16px}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 18px;font-size:11px}
+  .meta-grid div{border-bottom:1px dotted var(--line);padding:3px 0}
+  .meta-grid b{color:var(--sub);font-weight:500}
+  .concl{text-align:center;margin:18px 0 6px;font-size:13px;font-weight:700}
+  .concl span{display:inline-block;padding:4px 26px;border-radius:6px;font-size:16px}
+  .copyright{font-size:9px;color:var(--sub);text-align:center;margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
+  .dir-tab{font-size:10px}
+  .dir-tab td:nth-child(1){width:38px}
+  .dir-tab td:nth-child(3){width:56px}
+  .rtab{font-size:10px;margin-top:6px}
+  .rtab .over td{background:#fef2f2}
+  .rtab .over .val{color:var(--fail);font-weight:700}
+  .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:10px;
+    color:var(--sub);margin-top:16px;text-align:center}
+  .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:16px}
+  @media print{
+    body{background:#fff}
+    .topbar,.card.inp,.card.calc>h2,.card.ok,.hint,.foot,.no-print{display:none !important}
+    .grid3{display:block}
+    .card.calc{border:0;box-shadow:none;padding:0;background:#fff}
+    .paper{border:0;box-shadow:none;max-width:none;padding:0;margin:0 0 24px;page-break-after:always}
+    .wrap{max-width:none;padding:0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>PCS 热测试报告自动生成工具</h1>
+  <div class="desc"><b>硬件测试工程师工具</b> · 照真实报告结构复刻：封面 / 测试目录 / 编号测试页 → 逐测点折算判定 → 自动出结论与统计 → 导出可交付报告</div>
+</header>
+
+<div class="topbar no-print">
+  <button class="btn pri" onclick="doPrint()">打印 / 存 PDF</button>
+  <button class="btn" onclick="doWord()">导出 Word</button>
+  <button class="btn" onclick="doCopy()">复制报告文本</button>
+  <button class="btn" onclick="doCSV()">导出 CSV 明细</button>
+  <button class="btn" onclick="loadDemo()">载入示例</button>
+  <button class="btn danger" onclick="clearAll()">清空</button>
+</div>
+
+<div class="grid3">
+
+<!-- ============ 左：录入 ============ -->
+<aside>
+<div class="card inp">
+  <h2><span class="dot"></span>① 封面字段</h2>
+  <div class="hint">照报告"封面"页填写；整体结论由工具自动算，不用填。</div>
+  <div class="meta-grid" id="coverFields"></div>
+</div>
+
+<div class="card inp">
+  <h2><span class="dot"></span>② 测试目录（增删项）</h2>
+  <div class="itemtabs" id="itemTabs"></div>
+  <div class="rowbtns">
+    <button class="mini-btn" onclick="addItem()">+ 新增测试项</button>
+    <button class="mini-btn danger" onclick="delItem()">− 删除当前项</button>
+  </div>
+  <div class="subhd">当前项：平台 / 工况 / 仪器 / 折算参数</div>
+  <div id="itemFields"></div>
+  <div class="hint" style="margin-top:8px">
+    折算链：<b>偏移 = 基准水温 − 进水温度 + 额外偏移</b>；<b>折算温度 = 原始 + 偏移</b>；
+    <b>余量 = 限值 − 折算</b>；余量 &gt; 0 判 PASS。额外偏移对应报告里的软件校准（如进水温度减 3.5℃），不填按 0。
+  </div>
+  <div class="subhd">测点表（原始 / 限值 / 位置 / 通道）</div>
+  <table id="rowTable"></table>
+  <div class="rowbtns">
+    <button class="mini-btn" onclick="addRow()">+ 新增测点</button>
+    <button class="mini-btn" onclick="delRow()">− 删末行</button>
+    <button class="mini-btn" onclick="togglePaste()">从表格整块粘贴</button>
+  </div>
+  <div id="pasteBox" style="display:none;margin-top:8px">
+    <textarea id="pasteArea" rows="5" placeholder="从 xlsx 直接复制多行，每行：序号 [Tab或逗号] 通道 [Tab或逗号] 测试位置 [Tab或逗号] 原始温度 [Tab或逗号] 限值 [Tab或逗号] 备注&#10;限值或原始填 / 表示不判定"></textarea>
+    <div class="rowbtns"><button class="mini-btn" onclick="parsePaste()">解析并替换本页测点</button></div>
+  </div>
+</div>
+</aside>
+
+<!-- ============ 中：报告预览 A4 ============ -->
+<section class="card calc">
+  <h2><span class="dot"></span>③ 报告预览（A4 所见即所得）</h2>
+  <div id="reportArea"></div>
+</section>
+
+<!-- ============ 右：判定汇总 ============ -->
+<aside>
+<div class="card ok">
+  <h2><span class="dot"></span>④ 自动判定汇总</h2>
+  <div class="kpis" id="kpiBox"></div>
+  <div class="subhd">失败项清单（自动）</div>
+  <div id="failBox"></div>
+  <div class="subhd">当前页测点判定</div>
+  <div id="curVerdict"></div>
+</div>
+</aside>
+
+</div>
+<div class="foot">内核与网页逐项交叉验证 · 数据仅在本地浏览器计算，不上传</div>
+</div>
+
+<!-- ==================== 核心计算脚本（供 verify_web.js 抽取比对，勿改 UI 逻辑） ==================== -->
+<script id="core">
+// ===== 内置示例（来自真实报告 测试页1）=====
+var DEMO_DATA = {
+  cover: {
+    code:'PCS-HT-20260922-01', version:'V1.0',
+    name:'150kW PCS项目整机替代料热测试报告',
+    secret:'机密', scope:'电力电子开发部',
+    author:'高烽', checker:'李宏涛', approver:'赵明',
+    date:'2026-05-20', pages:'共49页'
+  },
+  items: [{
+    no:1, title:'1、热测试', platform:'电源平台',
+    condition:'工况详见原报告 D3（功率/电压/环境/进出水温度）；本页实测进水温度 40.6℃',
+    instrument:'测点编号与仪器说明详见原报告 D4',
+    baseline:40.0, water_in:40.6, extra_offset:0.0,
+    rows:[
+      {seq:1,  channel:'CH6-1', name:'A-IGBT-T1 散热器温度', temp_raw:54.0,  limit:103.0, note:''},
+      {seq:3,  channel:'CH6-3', name:'A-IGBT-T3 散热器温度', temp_raw:77.3,  limit:103.0, note:''},
+      {seq:81, channel:'/',     name:'后台 B相-IGBT',        temp_raw:63.2,  limit:80.0,  note:''},
+      {seq:83, channel:'/',     name:'后台 腔温',            temp_raw:81.8,  limit:80.0,  note:'超限示例'}
+    ]
+  }]
+};
+
+// 单元格值转 number；'/'、空串、null、非数字 → null（该点无数据/不判定）
+function _numOrNone(v){
+  if(v===null||v===undefined) return null;
+  if(typeof v==='number') return isFinite(v)?v:null;
+  var s=String(v).trim();
+  if(s===''||s==='/') return null;
+  var n=Number(s);
+  return isFinite(n)?n:null;
+}
+
+// 单个测点：折算 → 余量 → PASS/FAIL/NA
+function judgePoint(row, baseline, waterIn, extraOffset){
+  var t=_numOrNone(row.temp_raw), lim=_numOrNone(row.limit);
+  var b=_numOrNone(baseline), w=_numOrNone(waterIn);
+  var e=_numOrNone(extraOffset); e=(e===null?0.0:e);
+  var offset=(b!==null&&w!==null)?(b-w+e):null;
+  var conv=(t!==null&&offset!==null)?(t+offset):null;
+  var margin=(lim!==null&&conv!==null)?(lim-conv):null;
+  var judge=(margin===null)?'NA':((margin>0)?'PASS':'FAIL');
+  return {
+    seq:(row.seq!==undefined?row.seq:''),
+    channel:String(row.channel===undefined||row.channel===null?'':row.channel).trim(),
+    name:(row.name||''),
+    temp_raw:t, limit:lim, offset:offset, temp_conv:conv, margin:margin,
+    judge:judge, note:(row.note||'')
+  };
+}
+
+// 单项测试：逐测点判定 + 该项自动结论（任一 FAIL → FAIL）
+function solveItem(item){
+  var baseline=item.baseline, waterIn=item.water_in, extra=(item.extra_offset!==undefined?item.extra_offset:0.0);
+  var rows=[];
+  var src=item.rows||[];
+  for(var i=0;i<src.length;i++) rows.push(judgePoint(src[i],baseline,waterIn,extra));
+  var nPass=0,nFail=0,nNa=0;
+  for(var j=0;j<rows.length;j++){
+    if(rows[j].judge==='PASS') nPass++;
+    else if(rows[j].judge==='FAIL') nFail++;
+    else nNa++;
+  }
+  var conclusion = nFail>0?'FAIL':((nPass>0)?'PASS':'NA');
+  var eo=_numOrNone(extra);
+  return {
+    no:(item.no!==undefined?item.no:''), title:(item.title||''),
+    platform:(item.platform||''), condition:(item.condition||''), instrument:(item.instrument||''),
+    baseline:_numOrNone(baseline), water_in:_numOrNone(waterIn),
+    extra_offset:(eo===null?0.0:eo),
+    rows:rows, n_pass:nPass, n_fail:nFail, n_na:nNa, conclusion:conclusion
+  };
+}
+
+// 主求解入口：封面 + 各测试项 + 统计 + 整体结论
+function solveReport(data){
+  var cover={};
+  var srcCover=data.cover||{};
+  for(var k in srcCover) if(Object.prototype.hasOwnProperty.call(srcCover,k)) cover[k]=srcCover[k];
+  var items=[];
+  var srcItems=data.items||[];
+  for(var i=0;i<srcItems.length;i++) items.push(solveItem(srcItems[i]));
+  var total=items.length,nPass=0,nFail=0,nNa=0,failList=[];
+  for(var j=0;j<items.length;j++){
+    var cc=items[j].conclusion;
+    if(cc==='PASS') nPass++;
+    else if(cc==='FAIL'){ nFail++; failList.push({no:items[j].no,title:items[j].title}); }
+    else nNa++;
+  }
+  var stats={
+    total:total, n_pass:nPass, n_fail:nFail, n_na:nNa,
+    pass_rate:(total>0?nPass/total*100.0:0.0), fail_list:failList
+  };
+  var overall = nFail>0?'FAIL':((nPass>0)?'PASS':'NA');
+  cover.overall=overall;
+  return {cover:cover,items:items,stats:stats,overall:overall};
+}
+</script>
+
+<!-- ==================== UI 逻辑（不参与交叉验证） ==================== -->
+<script>
+var state = JSON.parse(JSON.stringify(DEMO_DATA));
+var curItem = 0;
+var $ = function(id){return document.getElementById(id)};
+var fmt = function(v,d){ if(v===null||v===undefined||isNaN(v)) return '—'; return Number(v).toFixed(d===undefined?2:d); };
+var esc = function(s){ return String(s===undefined||s===null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+
+function recompute(){ return solveReport(state); }
+
+// ---------- 封面录入 ----------
+var COVER_LABELS=[['code','文档编码'],['version','版本'],['name','报告名称'],['secret','密级'],
+  ['scope','发放范围'],['author','拟制人'],['checker','校准人'],['approver','批准人'],
+  ['date','时间'],['pages','页数']];
+function renderCover(){
+  var h='';
+  for(var i=0;i<COVER_LABELS.length;i++){
+    var key=COVER_LABELS[i][0],lbl=COVER_LABELS[i][1];
+    h+='<div><b>'+lbl+'：</b><input type="text" data-cover="'+key+'" value="'+esc(state.cover[key])+'"></div>';
+  }
+  $('coverFields').innerHTML=h;
+}
+$('coverFields').addEventListener('input',function(e){
+  var k=e.target.getAttribute('data-cover');
+  if(k){ state.cover[k]=e.target.value; renderAll(); }
+});
+
+// ---------- 测试项 tab ----------
+function renderTabs(res){
+  var h='';
+  for(var i=0;i<state.items.length;i++){
+    var cc=res?res.items[i].conclusion:'';
+    h+='<button class="itab '+(i===curItem?'on ':'')+cc+'" onclick="selItem('+i+')">'+esc(state.items[i].title||('项'+(i+1)))+'</button>';
+  }
+  $('itemTabs').innerHTML=h;
+}
+function selItem(i){ curItem=i; renderAll(); }
+function addItem(){
+  var n=state.items.length+1;
+  state.items.push({no:n,title:n+'、热测试',platform:'电源平台',condition:'',instrument:'',
+    baseline:40,water_in:40,extra_offset:0,rows:[{seq:1,channel:'CH1-1',name:'',temp_raw:'',limit:'',note:''}]});
+  curItem=state.items.length-1; renderAll();
+}
+function delItem(){
+  if(state.items.length<=1){ alert('至少保留一个测试项'); return; }
+  state.items.splice(curItem,1);
+  if(curItem>=state.items.length) curItem=state.items.length-1;
+  renderAll();
+}
+
+// ---------- 当前项字段 ----------
+function renderItemFields(){
+  var it=state.items[curItem];
+  var h='';
+  h+='<label class="fld"><span>序号/标题</span><input type="text" data-item="no" value="'+esc(it.no)+'" style="width:46px">'
+    +'<input type="text" data-item="title" value="'+esc(it.title)+'"></label>';
+  var flds=[['platform','测试平台'],['condition','测试工况'],['instrument','仪器说明']];
+  for(var i=0;i<flds.length;i++){
+    var k=flds[i][0];
+    h+='<label class="fld"><span>'+flds[i][1]+'</span><input type="text" data-item="'+k+'" value="'+esc(it[k])+'"></label>';
+  }
+  h+='<label class="fld"><span>基准水温℃</span><input type="number" step="0.1" data-item="baseline" value="'+esc(it.baseline)+'" style="width:80px">'
+    +'<span style="width:auto">进水℃</span><input type="number" step="0.1" data-item="water_in" value="'+esc(it.water_in)+'" style="width:80px">'
+    +'<span style="width:auto">额外偏移</span><input type="number" step="0.1" data-item="extra_offset" value="'+esc(it.extra_offset)+'" style="width:80px"></label>';
+  $('itemFields').innerHTML=h;
+}
+$('itemFields').addEventListener('input',function(e){
+  var k=e.target.getAttribute('data-item');
+  if(!k) return;
+  var v=e.target.value;
+  state.items[curItem][k]=(k==='baseline'||k==='water_in'||k==='extra_offset'||k==='no')?v:v;
+  renderAllNoFields();
+});
+
+// ---------- 测点表 ----------
+function renderRows(res){
+  var rows=state.items[curItem].rows;
+  var rr=res?res.items[curItem].rows:[];
+  var h='<tr><th>序号</th><th>通道</th><th>测试位置</th><th>原始</th><th>限值</th><th>折算</th><th>余量</th><th>判定</th><th>备注</th></tr>';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i],v=rr[i]||{};
+    var jd=v.judge||'NA';
+    h+='<tr><td><input type="text" data-r="'+i+'" data-f="seq" value="'+esc(r.seq)+'" style="width:38px"></td>'
+      +'<td><input type="text" data-r="'+i+'" data-f="channel" value="'+esc(r.channel)+'" style="width:64px"></td>'
+      +'<td class="l"><input type="text" data-r="'+i+'" data-f="name" value="'+esc(r.name)+'"></td>'
+      +'<td><input type="text" data-r="'+i+'" data-f="temp_raw" value="'+esc(r.temp_raw)+'" style="width:52px"></td>'
+      +'<td><input type="text" data-r="'+i+'" data-f="limit" value="'+esc(r.limit)+'" style="width:48px"></td>'
+      +'<td>'+fmt(v.temp_conv)+'</td><td>'+fmt(v.margin)+'</td>'
+      +'<td><span class="chk '+jd+'">'+jd+'</span></td>'
+      +'<td class="l"><input type="text" data-r="'+i+'" data-f="note" value="'+esc(r.note)+'" style="width:80px"></td></tr>';
+  }
+  $('rowTable').innerHTML=h;
+}
+$('rowTable').addEventListener('input',function(e){
+  var i=e.target.getAttribute('data-r'),f=e.target.getAttribute('data-f');
+  if(i===null||!f) return;
+  state.items[curItem].rows[parseInt(i)][f]=e.target.value;
+  renderAllNoFields();
+});
+function addRow(){
+  var rows=state.items[curItem].rows;
+  rows.push({seq:rows.length+1,channel:'',name:'',temp_raw:'',limit:'',note:''});
+  renderAll();
+}
+function delRow(){
+  var rows=state.items[curItem].rows;
+  if(rows.length<=1){ alert('至少保留一个测点'); return; }
+  rows.pop(); renderAll();
+}
+function togglePaste(){
+  var b=$('pasteBox');
+  b.style.display=(b.style.display==='none')?'block':'none';
+}
+function parsePaste(){
+  var txt=$('pasteArea').value.trim();
+  if(!txt){ alert('请先粘贴数据'); return; }
+  var lines=txt.split(/\r?\n/),rows=[];
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i].trim(); if(!line) continue;
+    var c=line.split(/[\t,，]+/);
+    while(c.length<6) c.push('');
+    rows.push({seq:c[0].trim(),channel:c[1].trim(),name:c[2].trim(),
+      temp_raw:c[3].trim(),limit:c[4].trim(),note:c[5].trim()});
+  }
+  if(!rows.length){ alert('没解析到有效行'); return; }
+  state.items[curItem].rows=rows;
+  renderAll();
+}
+
+// ---------- 报告预览 ----------
+function reportHTML(res){
+  var c=res.cover,s=res.stats;
+  var h='';
+  // 封面页
+  h+='<div class="paper"><div class="ptitle">'+esc(c.name)+'</div><div class="meta-grid">';
+  var cov=[['文档编码',c.code],['版本',c.version],['密级',c.secret],['发放范围',c.scope],
+    ['拟制人',c.author],['校准人',c.checker],['批准人',c.approver],['时间',c.date],['页数',c.pages]];
+  for(var i=0;i<cov.length;i++) h+='<div><b>'+cov[i][0]+'：</b>'+esc(cov[i][1])+'</div>';
+  h+='</div><div class="concl">整体结论 <span class="chk '+res.overall+'">'+res.overall+'</span></div>'
+    +'<div class="copyright">本报告结论由 PCS 热测试报告自动生成工具依据测点数据自动判定 · 未编辑试卷面数据请核对原始记录</div></div>';
+  // 目录页
+  h+='<div class="paper"><div class="ptitle">测试目录及测试结论</div>'
+    +'<div class="small" style="text-align:center;margin-bottom:10px">共 '+s.total+' 项 · PASS '+s.n_pass+' · FAIL '+s.n_fail+' · NA '+s.n_na+' · 通过率 '+fmt(s.pass_rate,1)+'%</div>'
+    +'<table class="dir-tab"><tr><th>序号</th><th>测试目录</th><th>结论</th><th>说明</th></tr>';
+  for(var j=0;j<res.items.length;j++){
+    var it=res.items[j];
+    h+='<tr><td>'+esc(it.no)+'</td><td class="l">'+esc(it.title)+'</td>'
+      +'<td><span class="chk '+it.conclusion+'">'+it.conclusion+'</span></td>'
+      +'<td class="l">'+esc(it.condition)+'</td></tr>';
+  }
+  h+='</table>';
+  if(s.fail_list.length){
+    h+='<div class="subhd">失败项清单</div><div class="small">';
+    for(var k=0;k<s.fail_list.length;k++) h+='· 第'+esc(s.fail_list[k].no)+'项 '+esc(s.fail_list[k].title)+'<br>';
+    h+='</div>';
+  }
+  h+='</div>';
+  // 当前测试页
+  var it=res.items[curItem];
+  h+='<div class="paper"><div style="font-size:15px;font-weight:700">'+esc(it.title)+'</div>'
+    +'<div class="meta-grid" style="margin-top:10px">'
+    +'<div><b>测试平台：</b>'+esc(it.platform)+'</div>'
+    +'<div><b>基准水温：</b>'+fmt(it.baseline,1)+'℃　<b>进水：</b>'+fmt(it.water_in,1)+'℃　<b>额外偏移：</b>'+fmt(it.extra_offset,1)+'</div>'
+    +'<div style="grid-column:1/3"><b>测试工况：</b>'+esc(it.condition)+'</div>'
+    +'<div style="grid-column:1/3"><b>仪器说明：</b>'+esc(it.instrument)+'</div></div>'
+    +'<table class="rtab"><tr><th>序号</th><th>通道</th><th>测试位置</th><th>原始</th><th>折算</th><th>限值</th><th>余量</th><th>判定</th></tr>';
+  for(var m=0;m<it.rows.length;m++){
+    var r=it.rows[m],over=(r.judge==='FAIL');
+    h+='<tr class="'+(over?'over':'')+'"><td>'+esc(r.seq)+'</td><td>'+esc(r.channel)+'</td>'
+      +'<td class="l">'+esc(r.name)+'</td><td>'+fmt(r.temp_raw)+'</td><td>'+fmt(r.temp_conv)+'</td>'
+      +'<td>'+fmt(r.limit)+'</td><td class="'+(over?'val':'')+'">'+fmt(r.margin)+'</td>'
+      +'<td><span class="chk '+r.judge+'">'+r.judge+'</span></td></tr>';
+  }
+  h+='</table><div class="sign"><div>拟制：'+esc(c.author)+'</div><div>校准：'+esc(c.checker)+'</div><div>批准：'+esc(c.approver)+'</div></div></div>';
+  return h;
+}
+
+// ---------- 汇总 ----------
+function renderKpi(res){
+  var s=res.stats;
+  var h='';
+  h+='<div class="kpi"><div class="k-lbl">整体结论</div><div class="k-val '+(res.overall==='PASS'?'good':(res.overall==='FAIL'?'bad':'warn'))+'">'+res.overall+'</div></div>';
+  h+='<div class="kpi"><div class="k-lbl">通过率</div><div class="k-val">'+fmt(s.pass_rate,1)+'<em style="font-size:11px">%</em></div></div>';
+  h+='<div class="kpi"><div class="k-lbl">FAIL 项</div><div class="k-val '+(s.n_fail>0?'bad':'good')+'">'+s.n_fail+'</div></div>';
+  h+='<div class="kpi"><div class="k-lbl">测试项</div><div class="k-val">'+s.total+'</div></div>';
+  h+='<div class="kpi"><div class="k-lbl">PASS</div><div class="k-val good">'+s.n_pass+'</div></div>';
+  h+='<div class="kpi"><div class="k-lbl">NA</div><div class="k-val">'+s.n_na+'</div></div>';
+  $('kpiBox').innerHTML=h;
+}
+function renderFail(res){
+  var s=res.stats;
+  if(!s.fail_list.length){ $('failBox').innerHTML='<div class="small">无失败项 ✓</div>'; return; }
+  var h='';
+  for(var i=0;i<s.fail_list.length;i++)
+    h+='<div class="failitem">第'+esc(s.fail_list[i].no)+'项 · '+esc(s.fail_list[i].title)+'</div>';
+  $('failBox').innerHTML=h;
+}
+function renderCur(res){
+  var it=res.items[curItem],h='<table><tr><th>测点</th><th>余量</th><th>判定</th></tr>';
+  for(var i=0;i<it.rows.length;i++){
+    var r=it.rows[i];
+    h+='<tr><td class="l">'+esc(r.name||r.channel)+'</td><td>'+fmt(r.margin)+'</td>'
+      +'<td><span class="chk '+r.judge+'">'+r.judge+'</span></td></tr>';
+  }
+  h+='</table>';
+  $('curVerdict').innerHTML=h;
+}
+
+// ---------- 总渲染 ----------
+function renderAll(){
+  var res=recompute();
+  renderCover(); renderTabs(res); renderItemFields(); renderRows(res);
+  $('reportArea').innerHTML=reportHTML(res);
+  renderKpi(res); renderFail(res); renderCur(res);
+}
+// 只更新计算相关，不重建输入框（避免输入焦点丢失）
+function renderAllNoFields(){
+  var res=recompute();
+  renderTabs(res); renderRows(res);
+  $('reportArea').innerHTML=reportHTML(res);
+  renderKpi(res); renderFail(res); renderCur(res);
+}
+
+// ---------- 导出 ----------
+function plainText(res){
+  var c=res.cover,s=res.stats,lines=[];
+  lines.push(c.name+'  '+c.version);
+  lines.push('文档编码：'+c.code+'  密级：'+c.secret+'  发放范围：'+c.scope);
+  lines.push('拟制：'+c.author+'  校准：'+c.checker+'  批准：'+c.approver+'  时间：'+c.date+'  页数：'+c.pages);
+  lines.push('整体结论：'+res.overall);
+  lines.push('');
+  lines.push('【测试目录】共'+s.total+'项 PASS='+s.n_pass+' FAIL='+s.n_fail+' NA='+s.n_na+' 通过率='+fmt(s.pass_rate,1)+'%');
+  for(var i=0;i<res.items.length;i++)
+    lines.push('  第'+res.items[i].no+'项 '+res.items[i].title+' → '+res.items[i].conclusion);
+  if(s.fail_list.length){
+    lines.push('失败项清单：');
+    for(var k=0;k<s.fail_list.length;k++) lines.push('  · 第'+s.fail_list[k].no+'项 '+s.fail_list[k].title);
+  }
+  for(var j=0;j<res.items.length;j++){
+    var it=res.items[j];
+    lines.push(''); lines.push('【'+it.title+'】结论 '+it.conclusion);
+    lines.push('  平台：'+it.platform+'  基准水温：'+fmt(it.baseline,1)+'℃ 进水：'+fmt(it.water_in,1)+'℃ 额外偏移：'+fmt(it.extra_offset,1));
+    lines.push('  工况：'+it.condition);
+    lines.push('  序号\t通道\t测试位置\t原始\t折算\t限值\t余量\t判定');
+    for(var m=0;m<it.rows.length;m++){
+      var r=it.rows[m];
+      lines.push('  '+r.seq+'\t'+r.channel+'\t'+r.name+'\t'+fmt(r.temp_raw)+'\t'+fmt(r.temp_conv)+'\t'+fmt(r.limit)+'\t'+fmt(r.margin)+'\t'+r.judge);
+    }
+  }
+  return lines.join('\n');
+}
+function doPrint(){ window.print(); }
+function doWord(){
+  var res=recompute();
+  var body=$('reportArea').innerHTML;
+  var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    +'<head><meta charset="utf-8"><style>body{font-family:"Microsoft YaHei";font-size:11pt}'
+    +'.paper{page-break-after:always;margin-bottom:20px}table{border-collapse:collapse;width:100%}'
+    +'td,th{border:1px solid #999;padding:4px;font-size:9pt}.ptitle{text-align:center;font-size:16pt;font-weight:bold}'
+    +'.chk{font-weight:bold}.chk.PASS{color:#059669}.chk.FAIL{color:#dc2626}</style></head><body>'+body+'</body></html>';
+  var blob=new Blob(['\ufeff'+html],{type:'application/msword'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(res.cover.name||'热测试报告')+'.doc'; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+}
+function doCopy(){
+  var txt=plainText(recompute());
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){alert('报告文本已复制到剪贴板')},
+      function(){fallbackCopy(txt)});
+  }else fallbackCopy(txt);
+}
+function fallbackCopy(txt){
+  var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+  ta.select(); try{document.execCommand('copy');alert('报告文本已复制')}catch(e){alert('复制失败，请手动选择')}
+  document.body.removeChild(ta);
+}
+function doCSV(){
+  var res=recompute(),rows=[['测试项序号','测试项名称','测点序号','通道','测试位置','原始温度','折算温度','限值','余量','判定','备注']];
+  for(var i=0;i<res.items.length;i++){
+    var it=res.items[i];
+    for(var j=0;j<it.rows.length;j++){
+      var r=it.rows[j];
+      rows.push([it.no,it.title,r.seq,r.channel,r.name,fmt(r.temp_raw),fmt(r.temp_conv),fmt(r.limit),fmt(r.margin),r.judge,r.note]);
+    }
+  }
+  var csv='\ufeff'+rows.map(function(row){
+    return row.map(function(v){return '"'+String(v===undefined||v===null?'':v).replace(/"/g,'""')+'"'}).join(',');
+  }).join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='热测试明细.csv'; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+}
+function loadDemo(){ state=JSON.parse(JSON.stringify(DEMO_DATA)); curItem=0; renderAll(); }
+function clearAll(){
+  if(!confirm('确认清空全部数据？')) return;
+  state={cover:{code:'',version:'',name:'热测试报告',secret:'',scope:'',author:'',checker:'',approver:'',date:'',pages:''},
+    items:[{no:1,title:'1、热测试',platform:'',condition:'',instrument:'',baseline:40,water_in:40,extra_offset:0,
+      rows:[{seq:1,channel:'',name:'',temp_raw:'',limit:'',note:''}]}]};
+  curItem=0; renderAll();
+}
+
+renderAll();
+</script>
+</body>
+</html>
