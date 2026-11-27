@@ -302,7 +302,8 @@ function renderCover(){
 }
 $('coverFields').addEventListener('input',function(e){
   var k=e.target.getAttribute('data-cover');
-  if(k){ state.cover[k]=e.target.value; renderAll(); }
+  // 只刷新非输入区，绝不重建封面输入框（否则焦点丢失、每敲一字就退出）
+  if(k){ state.cover[k]=e.target.value; onDataChange(); }
 });
 
 // ---------- 测试项 tab ----------
@@ -348,8 +349,9 @@ $('itemFields').addEventListener('input',function(e){
   var k=e.target.getAttribute('data-item');
   if(!k) return;
   var v=e.target.value;
-  state.items[curItem][k]=(k==='baseline'||k==='water_in'||k==='extra_offset'||k==='no')?v:v;
-  renderAllNoFields();
+  state.items[curItem][k]=v;
+  // 当前项字段变化会影响折算，需更新测点表计算列，但同样不能重建输入框
+  onDataChange();
 });
 
 // ---------- 测点表 ----------
@@ -360,13 +362,14 @@ function renderRows(res){
   for(var i=0;i<rows.length;i++){
     var r=rows[i],v=rr[i]||{};
     var jd=v.judge||'NA';
-    h+='<tr><td><input type="text" data-r="'+i+'" data-f="seq" value="'+esc(r.seq)+'" style="width:38px"></td>'
+    h+='<tr data-r="'+i+'"><td><input type="text" data-r="'+i+'" data-f="seq" value="'+esc(r.seq)+'" style="width:38px"></td>'
       +'<td><input type="text" data-r="'+i+'" data-f="channel" value="'+esc(r.channel)+'" style="width:64px"></td>'
       +'<td class="l"><input type="text" data-r="'+i+'" data-f="name" value="'+esc(r.name)+'"></td>'
       +'<td><input type="text" data-r="'+i+'" data-f="temp_raw" value="'+esc(r.temp_raw)+'" style="width:52px"></td>'
       +'<td><input type="text" data-r="'+i+'" data-f="limit" value="'+esc(r.limit)+'" style="width:48px"></td>'
-      +'<td>'+fmt(v.temp_conv)+'</td><td>'+fmt(v.margin)+'</td>'
-      +'<td><span class="chk '+jd+'">'+jd+'</span></td>'
+      +'<td><span data-o="conv">'+fmt(v.temp_conv)+'</span></td>'
+      +'<td><span data-o="margin">'+fmt(v.margin)+'</span></td>'
+      +'<td><span data-o="judge" class="chk '+jd+'">'+jd+'</span></td>'
       +'<td class="l"><input type="text" data-r="'+i+'" data-f="note" value="'+esc(r.note)+'" style="width:80px"></td></tr>';
   }
   $('rowTable').innerHTML=h;
@@ -375,7 +378,7 @@ $('rowTable').addEventListener('input',function(e){
   var i=e.target.getAttribute('data-r'),f=e.target.getAttribute('data-f');
   if(i===null||!f) return;
   state.items[curItem].rows[parseInt(i)][f]=e.target.value;
-  renderAllNoFields();
+  onDataChange();
 });
 function addRow(){
   var rows=state.items[curItem].rows;
@@ -493,12 +496,28 @@ function renderAll(){
   $('reportArea').innerHTML=reportHTML(res);
   renderKpi(res); renderFail(res); renderCur(res);
 }
-// 只更新计算相关，不重建输入框（避免输入焦点丢失）
-function renderAllNoFields(){
+// ===== 输入时的增量刷新：只更新非输入区 + 原地刷新计算列，绝不重建正在输入的输入框 =====
+function onDataChange(){
   var res=recompute();
-  renderTabs(res); renderRows(res);
+  // 1) tab 标签文字/结论色（按钮，无需焦点）
+  renderTabs(res);
+  // 2) 报告预览 + 汇总
   $('reportArea').innerHTML=reportHTML(res);
   renderKpi(res); renderFail(res); renderCur(res);
+  // 3) 测点表计算列原地更新（折算/余量/判定），不动任何 input
+  var trs=$('rowTable').querySelectorAll('tr[data-r]');
+  var rows=res.items[curItem].rows;
+  for(var i=0;i<trs.length;i++){
+    var ri=parseInt(trs[i].getAttribute('data-r'));
+    var cells=trs[i].querySelectorAll('[data-o]');
+    if(!cells.length) continue;
+    var v=rows[ri]; if(!v) continue;
+    for(var c=0;c<cells.length;c++){
+      var key=cells[c].getAttribute('data-o');
+      if(key==='judge'){ cells[c].textContent=v.judge; cells[c].className='chk '+v.judge; }
+      else cells[c].textContent=fmt(v[key]);
+    }
+  }
 }
 
 // ---------- 导出 ----------
